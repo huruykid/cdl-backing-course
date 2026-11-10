@@ -88,6 +88,8 @@
   function enterYard() { if (onboarded || setupDone) showMenu(); else showWelcome(); }
   function setControlHelp(value) {
     controlHelp = value;
+    document.body.classList.toggle('touch-help', value === 'touch');
+    document.body.classList.toggle('keyboard-help', value === 'keyboard');
     $('help-keyboard').setAttribute('aria-pressed', String(value === 'keyboard'));
     $('help-touch').setAttribute('aria-pressed', String(value === 'touch'));
     $('primer-steer').textContent = controlsText('Drag the steering wheel left or right. Tap Center to straighten it.', 'Hold ← or → to turn. Press C to center the wheel.');
@@ -291,6 +293,7 @@
     return { t: turn + ' ' + why, cue: 'fwd' };
   }
   function coachLine() {
+    if (briefing) return { t: 'Get familiar with the goal below. Select Start driving when you are ready.' };
     if (L.kind === 'tutorial') return tutLine();
     if (replay) return { t: 'Replay: scrub through your attempt. Change cameras to inspect your positioning.' };
     if (looking) return { t: 'You are out of the cab and the clock is stopped. Drag to walk around. ' + (looks <= L.looksFree ? 'Look ' + looks + ' of ' + L.looksFree + ' free.' : 'This extra look costs 1 point.') };

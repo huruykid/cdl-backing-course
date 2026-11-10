@@ -14,7 +14,7 @@ function game(saved = {}) {
   const storage = { ...saved };
   const g = vm.createContext({ console, Math, performance: { now: () => 1000 },
     localStorage: { getItem: k => storage[k] || null, setItem: (k, v) => storage[k] = v },
-    document: { documentElement: {}, body: { classList: { add() {}, remove() {} } }, getElementById: node, querySelector: () => ({ value: 'new' }), hidden: false }, window: { scrollTo() {} },
+    document: { documentElement: {}, body: { classList: { add() {}, remove() {}, toggle() {} } }, getElementById: node, querySelector: () => ({ value: 'new' }), hidden: false }, window: { scrollTo() {} },
     getComputedStyle: () => ({ getPropertyValue: () => '#000000' }) });
   vm.runInContext(source('core.js') + source('experience.js') + source('ui.js').split('  // ---- drawing:')[0], g);
   g.setSteer = value => { g.steer = Math.max(-1, Math.min(1, value)); };
@@ -181,4 +181,17 @@ test('backing lesson requires the instructed direction, not just any large angle
 test('keyboard and touch instructions match the selected help mode', () => {
   const g = game(); g.setControlHelp('touch'); assert.match(g.STEPS[0].t(), /FWD/);
   g.setControlHelp('keyboard'); assert.match(g.STEPS[0].t(), /↑/);
+});
+
+
+test('experienced setup choice persists without pretending the tutorial was completed', () => {
+  const g = game({'cdl.setup.v2':'done'}); g.enterYard();
+  assert.equal(g.mode, 'menu'); assert.equal(g.onboarded, false);
+  assert.equal(g.nodes.get('learning-reminder').hidden, false);
+});
+test('Home exits the attempt and releases controls without losing earned stars', () => {
+  const g = game({'cdl.progress':JSON.stringify({fstop:{stars:2}})});
+  g.ptrDrive = 1; g.keys.ArrowUp = true; g.showHome();
+  assert.equal(g.mode, 'home'); assert.equal(g.ptrDrive, 0); assert.equal(g.prog.fstop.stars, 2);
+  assert.equal(g.nodes.get('landing').hidden, false); assert.equal(g.nodes.get('app').hidden, true);
 });

@@ -57,3 +57,16 @@ The scoring is for this game, not a certified exam. A pass requires reaching the
 Run `node --test tests/game.test.cjs`, then `sh build.sh`. The regression suite drives the real simulation through all six coached drills and checks scoring, replay restoration, tutorial reset, pause and input cleanup.
 
 `src/experience.js` contains audio, recording/playback and pause state. The generated `index.html` must be committed with source edits.
+
+## Landing and first drive
+
+The root page introduces the game, shows actual in-cab gameplay, explains the six-drill progression and answers common questions. Returning players can enter their saved drills directly.
+
+First-time players choose their experience and sound preference, review keyboard or touch controls, then enter an eight-action guided drive. Checkpoints stop the rig and release held controls before the next instruction. Contextual hints are available, and tutorial completion is stored separately from skipping setup. A briefing explains the goal before each scored drill begins.
+
+- `src/landing.html`: landing markup and embedded gameplay image.
+- `src/landing.css`: responsive landing styles.
+- `cdl.setup.v2`: remembers completed or explicitly skipped setup.
+- `cdl.tutorial.v2`: records actual first-drive completion.
+
+The landing remains available if 3D initialization fails; entering the yard shows a recovery message. Progress is local to the browser and does not sync across devices.
