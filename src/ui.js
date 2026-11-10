@@ -20,7 +20,7 @@
     setupDone = localStorage.getItem('cdl.setup.v2') === 'done';
     onboarded = localStorage.getItem('cdl.tutorial.v2') === 'complete' || Object.keys(prog).length > 0;
     if (localStorage.getItem('cdl.coach') === 'off') guideOn = false;
-    var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
+    var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat' || sv === 'yard') viewMode = sv;
   } catch (e) { prog = {}; }
   function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   // open if the level before it is passed; levels passed before the list grew stay open
@@ -425,16 +425,19 @@
   try { renderer = new T.WebGLRenderer({ canvas: $('gl'), antialias: true }); }
   catch (e) { bootError('This browser could not start 3D graphics. Try a browser with WebGL enabled.'); return; }
   renderer.autoClear = false; renderer.outputEncoding = T.sRGBEncoding;
+  renderer.toneMapping = T.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.12;
+  var compactGPU = window.matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 600;
+  var renderScale = compactGPU ? 1 : 1.5, frameSeconds = 1 / 60;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
   function col(c) { return new T.Color(c).convertSRGBToLinear(); }
-  var HORIZON = '#cfdbe0', GROUND_C = col('#2c2f31');
+  var HORIZON = '#c8d7df', GROUND_C = col('#2c2f31');
   var world = new T.Scene(), fog = new T.Fog(col(HORIZON), 200, 760), SKY = col(HORIZON);
   world.background = SKY;
-  world.add(new T.HemisphereLight(col('#dce8ef'), col('#77726a'), 0.72));
-  var sun = new T.DirectionalLight(col('#fff0d6'), 0.95);
-  sun.position.set(W / 2 - 60, 115, H / 2 - 80); sun.target.position.set(W / 2, 0, H / 2);
-  sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.06;
-  var sc = sun.shadow.camera; sc.left = -105; sc.right = 105; sc.top = 105; sc.bottom = -105; sc.near = 20; sc.far = 340;
+  world.add(new T.HemisphereLight(col('#dce8ef'), col('#77726a'), 0.85));
+  var sun = new T.DirectionalLight(col('#ffebcc'), 2.1);
+  sun.position.set(W / 2 - 65, 100, H / 2 - 50); sun.target.position.set(W / 2, 0, H / 2);
+  sun.castShadow = true; sun.shadow.mapSize.set(compactGPU ? 1024 : 2048, compactGPU ? 1024 : 2048); sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.06;
+  var sc = sun.shadow.camera; sc.left = -100; sc.right = 100; sc.top = 95; sc.bottom = -95; sc.near = 20; sc.far = 340;
   world.add(sun); world.add(sun.target);
 
   // ---- materials and painted-on-canvas textures (no image files to host) ----
@@ -460,10 +463,15 @@
     }
   }
   var texGround = canvasTex(256, 256, function (g, w, h) { speckle(g, w, h, '#2e3133', 5000, 0.06); cracks(g, w, h, 3, 'rgba(0,0,0,.16)'); });
-  texGround.repeat.set(36, 36);
-  var texPad = canvasTex(256, 256, function (g, w, h) {
-    speckle(g, w, h, '#50555a', 6000, 0.05); cracks(g, w, h, 2, 'rgba(0,0,0,.1)');
-    for (var i = 0; i < 5; i++) { g.fillStyle = 'rgba(0,0,0,.07)'; g.fillRect(rnd() * w, 0, 5 + rnd() * 6, h); }      // tyre streaks
+  texGround.repeat.set(90, 90);
+  var texPad = canvasTex(512, 512, function (g, w, h) {
+    speckle(g, w, h, '#64686b', 26000, 0.045);
+    cracks(g, w, h, 2, 'rgba(20,24,26,.16)');
+    for (var i = 0; i < 24; i++) {
+      var gr = g.createRadialGradient(rnd()*w,rnd()*h,0,w/2,h/2,w*.7);
+      gr.addColorStop(0,'rgba(20,22,24,.008)'); gr.addColorStop(1,'rgba(20,22,24,0)');
+      g.fillStyle=gr; g.fillRect(0,0,w,h);
+    }
   });
   var texSide = canvasTex(512, 128, function (g, w, h) {
     g.fillStyle = '#eef0ee'; g.fillRect(0, 0, w, h);
@@ -504,10 +512,10 @@
     g.fillStyle = gr; g.fillRect(0, 0, w, h);
   });
 
-  function mat(c, o) { var p = { color: col(c), side: T.DoubleSide }; for (var k in (o || {})) p[k] = o[k]; return new T.MeshLambertMaterial(p); }
-  function gloss(c, shine, spec) { return new T.MeshPhongMaterial({ color: col(c), shininess: shine, specular: col(spec || '#666666'), side: T.DoubleSide }); }
-  function lit(c) { return new T.MeshBasicMaterial({ color: col(c) }); }
-  function mapped(t, o) { var p = { map: t, side: T.DoubleSide }; for (var k in (o || {})) p[k] = o[k]; return new T.MeshLambertMaterial(p); }
+  function mat(c, o) { var p = { color: col(c), side: T.DoubleSide }; for (var k in (o || {})) p[k] = o[k]; p.roughness = p.roughness == null ? 0.85 : p.roughness; return new T.MeshStandardMaterial(p); }
+  function gloss(c, shine, spec) { return new T.MeshStandardMaterial({ color: col(c), roughness: shine > 80 ? 0.22 : 0.34, metalness: shine > 80 ? 0.7 : 0.28 }); }
+  function lit(c) { return new T.MeshBasicMaterial({ color: col(c), toneMapped: false }); }
+  function mapped(t, o) { var p = { map: t, side: T.DoubleSide }; for (var k in (o || {})) p[k] = o[k]; p.roughness = p.roughness == null ? 0.85 : p.roughness; return new T.MeshStandardMaterial(p); }
   var M = {
     ground: mapped(texGround), paint: mat('#f2c230'), white: mat('#f4f5f3'), red: mat('#d8343a'),
     tire: mat('#141618'), hub: mapped(texHub), steel: mat('#3a3f44'), chrome: gloss('#c9d0d4', 90, '#ffffff'),
@@ -526,7 +534,7 @@
   function span(parent, a0, a1, y0, y1, w, z, m, cast) { return bx(parent, a1 - a0, y1 - y0, w, (a0 + a1) / 2, (y0 + y1) / 2, z, m, cast); }
   function prism(parent, pts, width, m) {      // a side profile (x forward, y up) pushed across the body's width
     var sh = new T.Shape(); pts.forEach(function (p, i) { if (i) sh.lineTo(p[0], p[1]); else sh.moveTo(p[0], p[1]); });
-    var g = new T.ExtrudeGeometry(sh, { depth: width, bevelEnabled: false }); g.translate(0, 0, -width / 2);
+    var g = new T.ExtrudeGeometry(sh, { depth: width, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2, steps: 1 }); g.translate(0, 0, -width / 2);
     var me = new T.Mesh(g, m); me.castShadow = true; me.receiveShadow = true; parent.add(me); return me;
   }
   function tube(parent, r, len, x, y, z, m, axis) {
@@ -609,7 +617,7 @@
   // the yard around the pad: sky, warehouse, fence, light poles, parked trailers
   (function () {
     var live = wheels.length;
-    var dome = new T.Mesh(new T.SphereGeometry(1000, 24, 12), new T.MeshBasicMaterial({ map: texSky, side: T.BackSide, fog: false }));
+    var dome = new T.Mesh(new T.SphereGeometry(1000, 24, 12), new T.MeshBasicMaterial({ map: texSky, side: T.BackSide, fog: false, toneMapped: false }));
     dome.position.set(W / 2, 0, H / 2); world.add(dome);
     var st = texShed.clone(); st.needsUpdate = true; st.repeat.set(7, 1);
     var shed = bx(world, 60, 26, 200, -30, 13, 105, mapped(st));
@@ -687,10 +695,12 @@
     }
   }
 
+  var graphics = enhanceGraphics();
+
   // cameras
   var camTop = new T.OrthographicCamera(-50, 50, 61, -61, 1, 600);
   camTop.up.set(0, 0, -1); camTop.position.set(W / 2, 300, H / 2); camTop.lookAt(W / 2, 0, H / 2);
-  var camP = new T.PerspectiveCamera(60, 1, 0.3, 900), camYaw = 0.3;
+  var camP = new T.PerspectiveCamera(60, 1, 0.3, 900), camYaw = 0.3, yardYaw = 0.78;
   function seatPos(a, b) { var c = Math.cos(s.t1), n = Math.sin(s.t1); return { x: s.x + a * c - b * n, y: s.y + a * n + b * c }; }
   function topFit(w, h) {
     var asp = w / h, hh = H / 2, hw = hh * asp;
@@ -715,7 +725,7 @@
   function fit() {
     var r = yard.getBoundingClientRect();
     view.w = Math.max(1, Math.round(r.width)); view.h = Math.max(1, Math.round(r.height));
-    view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    view.dpr = Math.min(window.devicePixelRatio || 1, renderScale);
     renderer.setPixelRatio(view.dpr); renderer.setSize(view.w, view.h, false);
     cv.width = view.w * view.dpr; cv.height = view.h * view.dpr;
   }
@@ -726,7 +736,8 @@
     var glow = dirty || bumped ? 0x5a0c10 : 0x000000;
     trlMats.forEach(function (tm) { tm.emissive.setHex(glow); });
     revMat.color.copy(col(s.v < -0.05 ? '#ffffff' : '#3a3d3f'));
-    spin -= s.v * 0.0095; wheels.forEach(function (wh) { wh.rotation.y = spin; });
+    spin -= s.v * frameSeconds / 1.75; wheels.forEach(function (wh) { wh.rotation.y = spin; });
+    graphics.tick(frameSeconds);
     cones.forEach(function (k, i) {
       var g = coneM[i]; if (!g) return;
       g.rotation.x = k.hit ? PI / 2 : 0; g.position.y = k.hit ? 0.7 : 0;
@@ -756,6 +767,15 @@
       cabG.visible = true;
       eyePass(eye, 5.6, Math.atan2(rp.y - eye.y, rp.x - eye.x), 0.06, w * 0.7, 0, 0, w, h);
       caption('OUT OF THE CAB · DRAG TO WALK AROUND');
+      return;
+    }
+    if (viewMode === 'yard') {
+      cabG.visible = true;
+      var center = seatPos(-10, 0), angle = s.t1 + yardYaw;
+      var distance = w / h < 0.85 ? 88 : 72;
+      var yardEye = { x: center.x + Math.cos(angle) * distance, y: center.y + Math.sin(angle) * distance };
+      eyePass(yardEye, 49, angle + PI, Math.atan2(44, distance), Math.min(w, h) * 1.05, 0, 0, w, h);
+      caption('YARD VIEW · DRAG TO ORBIT');
       return;
     }
     if (viewMode === 'top') {
@@ -788,6 +808,7 @@
       var dashY = vh * 0.76;
       ctx.fillStyle = '#131517'; ctx.fillRect(0, dashY, vw, vh - dashY);
       ctx.fillStyle = '#2a2e32'; ctx.fillRect(0, dashY, vw, 3 * dpr);
+      graphics.dashboard(vw, vh, dpr);
       ctx.fillStyle = '#0b0d0e';
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(vw * 0.035, 0); ctx.lineTo(vw * 0.015, dashY); ctx.lineTo(0, dashY); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.moveTo(vw, 0); ctx.lineTo(vw * 0.965, 0); ctx.lineTo(vw * 0.985, dashY); ctx.lineTo(vw, dashY); ctx.closePath(); ctx.fill();
@@ -840,6 +861,7 @@
     $('v-top').setAttribute('aria-pressed', m === 'top');
     $('v-cab').setAttribute('aria-pressed', m === 'cab');
     $('v-seat').setAttribute('aria-pressed', m === 'seat');
+    $('v-yard').setAttribute('aria-pressed', m === 'yard');
     save('cdl.view', m);
   }
   function setCoach(on) {
@@ -923,8 +945,8 @@
   }
   (function () {      // drag on the pad to walk around while out of the cab
     var gl = $('gl'), d = null;
-    gl.addEventListener('pointerdown', function (e) { if (!looking) return; gl.setPointerCapture(e.pointerId); d = { id: e.pointerId, x: e.clientX, y0: goalYaw }; });
-    gl.addEventListener('pointermove', function (e) { if (d && e.pointerId === d.id && looking) goalYaw = d.y0 + (e.clientX - d.x) * 0.012; });
+    gl.addEventListener('pointerdown', function (e) { if (!looking && viewMode !== 'yard') return; gl.setPointerCapture(e.pointerId); d = { id: e.pointerId, x: e.clientX, y0: looking ? goalYaw : yardYaw }; });
+    gl.addEventListener('pointermove', function (e) { if (d && e.pointerId === d.id) { if (looking) goalYaw = d.y0 + (e.clientX - d.x) * 0.012; else if (viewMode === 'yard') yardYaw = d.y0 + (e.clientX - d.x) * 0.012; } });
     ['pointerup', 'pointercancel'].forEach(function (n) { gl.addEventListener(n, function () { d = null; }); });
   })();
   hold(el.rev, -1);
@@ -932,6 +954,7 @@
   $('v-top').addEventListener('click', function () { setView('top'); });
   $('v-cab').addEventListener('click', function () { setView('cab'); });
   $('v-seat').addEventListener('click', function () { setView('seat'); });
+  $('v-yard').addEventListener('click', function () { setView('yard'); });
   $('v-goal').addEventListener('click', toggleLook);
   $('b-brake').addEventListener('click', setBrake);
   $('b-center').addEventListener('click', function () { if (!finished) setSteer(0); });
@@ -967,7 +990,7 @@
     else if (e.key === 'c' || e.key === 'C') { if (!finished) setSteer(0); }
     else if (e.key === 'r' || e.key === 'R') { reset(); }
     else if (e.key === 'g' || e.key === 'G') { toggleLook(); }
-    else if (e.key === 'v' || e.key === 'V') { setView(viewMode === 'top' ? 'cab' : viewMode === 'cab' ? 'seat' : 'top'); }
+    else if (e.key === 'v' || e.key === 'V') { setView(viewMode === 'top' ? 'yard' : viewMode === 'yard' ? 'cab' : viewMode === 'cab' ? 'seat' : 'top'); }
   });
   window.addEventListener('keyup', function (e) { keys[e.key] = false; });
   window.addEventListener('blur', pauseGame);
@@ -1001,7 +1024,9 @@
           var boxedNow = L.kind !== 'tutorial' && inBox();
           if (boxedNow && !wasBoxed) chime('step'); wasBoxed = boxedNow;
         }
-        draw(); hud();
+        frameSeconds = paused || briefing || finished || document.hidden ? 0 : dt;
+        graphics.monitor(now, document.hidden || paused || briefing || finished);
+        if (!document.hidden) { draw(); hud(); }
       }
       soundTick(dt); requestAnimationFrame(frame);
     })(last);

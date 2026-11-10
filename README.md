@@ -16,7 +16,7 @@ Docking challenges:
 
 Lane sizes and point values are the game's own practice settings. They have not been verified against an official test manual.
 
-Three camera views (overhead, driver's window, driver's seat with mirrors), a turn-by-turn coach, and an examiner-style score sheet.
+Four camera views (overhead, orbiting yard, driver's window, driver's seat with mirrors), a turn-by-turn coach, and an examiner-style score sheet.
 
 ## Run it
 
@@ -70,3 +70,18 @@ First-time players choose their experience and sound preference, review keyboard
 - `cdl.tutorial.v2`: records actual first-drive completion.
 
 The landing remains available if 3D initialization fails; entering the yard shows a recovery message. Progress is local to the browser and does not sync across devices.
+
+## Graphics
+
+`src/graphics.js` adds original procedural truck detail, physical materials, sky
+reflections, dock signage, pavement wear, contact shadows, instrument gauges and
+cosmetic cab suspension. All model geometry and textures are generated locally;
+there are no downloaded model assets or additional runtime libraries.
+
+**Yard** gives an orbitable three-quarter view. Drag the scene to rotate it.
+V cycles Top, Yard, Window and Seat. Mirrors render the live scene. Physics and
+collision dimensions are unchanged. Wheels rotate according to elapsed time.
+
+Mobile/coarse-pointer devices start with a smaller shadow map and pixel ratio.
+Sustained slow frames lower rendering resolution automatically. Static boxes are
+batched with instancing to reduce draw calls; live wheels remain independent.
