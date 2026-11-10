@@ -53,6 +53,20 @@ h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 30px; 
 .stats dd { margin: 0; font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
 .stats dd.hot { color: var(--cone); }
 
+/* first visit */
+.welcome .lede { font-family: var(--display); font-weight: 700; font-size: 34px; line-height: 1.02; text-transform: uppercase; color: var(--text); text-wrap: balance; margin: 6px 0 4px; }
+.welcome .ask { margin-top: 14px; font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--paint); }
+.choice {
+  width: 100%; min-height: 56px; padding: 10px 14px; text-align: left; cursor: pointer; border-radius: 6px;
+  border: 1px solid var(--steel-hi); background: transparent; color: var(--text);
+  font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: .03em; text-transform: uppercase;
+}
+.choice.go { background: var(--paint); border-color: var(--paint); color: var(--ink); }
+.tutbar { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.tutbar button { min-height: 36px; padding: 0 12px; border-radius: 4px; border: 1px solid var(--steel-hi); background: transparent; color: var(--text); cursor: pointer; font: inherit; letter-spacing: .06em; text-transform: uppercase; }
+.link { align-self: flex-start; background: none; border: 0; padding: 8px 0; cursor: pointer; color: var(--paint); font-family: var(--body); font-size: 14px; text-decoration: underline; }
+.sheet .done { margin: 10px 0 12px; font-size: 14px; line-height: 1.4; }
+
 /* level list */
 .menu { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .menu > p { margin: 0 0 2px; font-size: 14px; line-height: 1.4; color: var(--soft); max-width: 46ch; }
@@ -173,12 +187,23 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
       <div><dt>Encroach</dt><dd id="s-enc">0</dd></div>
       <div><dt>Time</dt><dd id="s-time">0:00</dd></div>
     </dl>
+    <div class="tutbar" id="tutbar" hidden><span id="tutstep"></span><button type="button" id="b-skip">Skip</button></div>
   </header>
+
+  <main class="menu welcome" id="welcome" hidden>
+    <p class="lede">Learn the backing moves before your first day in a truck.</p>
+    <p>Short drills, a coach that tells you when to turn, and the same scoring the examiner uses.</p>
+    <p class="ask">Have you backed a trailer before?</p>
+    <button type="button" class="choice go" id="w-new">Never. Show me the controls</button>
+    <button type="button" class="choice" id="w-skip">Yes. Take me to the drills</button>
+    <p class="legend">No account needed. Your progress saves on this device.</p>
+  </main>
 
   <main class="menu" id="menu">
     <p>Four backing drills, easiest first. Pass one to unlock the next. The coach tells you when and which way to turn.</p>
     <div id="levels"></div>
     <p class="legend">★ pass with Coach on &nbsp;·&nbsp; ★★ pass solo &nbsp;·&nbsp; ★★★ solo with 1 point or less</p>
+    <button type="button" class="link" id="b-howto">How to play</button>
   </main>
 
   <div class="game" id="game" hidden>

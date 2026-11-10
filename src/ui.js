@@ -6,9 +6,10 @@
   function $(id) { return document.getElementById(id); }
 
   // ---- saved progress ----
-  var prog = {}, guideOn = true, viewMode = 'top';
+  var prog = {}, guideOn = true, viewMode = 'top', onboarded = false;
   try {
     prog = JSON.parse(localStorage.getItem('cdl.progress')) || {};
+    onboarded = localStorage.getItem('cdl.onboarded') === '1' || Object.keys(prog).length > 0;
     if (localStorage.getItem('cdl.coach') === 'off') guideOn = false;
     var sv = localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
   } catch (e) { prog = {}; }
@@ -18,6 +19,59 @@
 
   // ---- run state ----
   var mode = 'menu', li = 0, L = LEVELS[0];
+
+  // ---- first-visit tutorial: an open lot, one control at a time, each step done by doing it ----
+  var TUT = { id: 'tutorial', kind: 'tutorial', name: 'First Moves', free: 99, brief: '',
+    start: { x: 62, y: 34, t1: -PI / 2, t2: -PI / 2 },
+    zones: [[6, 4, 96, 118]], lines: [[6, 4, 96, 4], [96, 4, 96, 118], [96, 118, 6, 118], [6, 118, 6, 4]],
+    cones: [], box: [0, 0, 0, 0], dockZone: [0, 0, 0, 0], walls: [], labels: [] };
+  var tut = null;
+  function moved() { return Math.hypot(s.x - tut.s0.x, s.y - tut.s0.y); }
+  var STEPS = [
+    { t: 'Hold FWD to pull forward.', cue: 'fwd', done: function () { return moved() > 10; } },
+    { t: 'Drag the steering wheel all the way right.', cue: 'steer', done: function () { return steer > 0.75; } },
+    { t: 'Now drag it all the way left.', cue: 'steer', done: function () { return steer < -0.75; } },
+    { t: 'Tap Center to straighten the wheel.', cue: 'center', done: function () { return Math.abs(steer) < 0.03; } },
+    { t: 'Turn the wheel right and hold REV. Watch the trailer tail swing left.', cue: 'rev', done: function () { return s.v < 0 && Math.abs(norm(s.t1 - s.t2)) > 0.45; } },
+    { t: 'Now steer the other way and keep backing until the truck is straight again.', cue: 'rev', done: function () { return moved() > 3 && Math.abs(norm(s.t1 - s.t2)) < 0.07; } },
+    { t: 'Tap Window or Seat to see it from the cab.', cue: 'views', done: function () { return viewMode !== tut.view0; } },
+    { t: 'Tap Set brake. That is how you finish every drill.', cue: 'brake', done: function () { return false; } }
+  ];
+  function tutMark() { tut.s0 = { x: s.x, y: s.y, t2: s.t2 }; tut.view0 = viewMode; $('tutstep').textContent = 'Step ' + (tut.i + 1) + ' of ' + STEPS.length; }
+  function tutTick() {
+    if (!tut || finished || !STEPS[tut.i].done()) return;
+    tut.i++; tutMark(); coachHold = { t: 'Good.', until: performance.now() + 650 };
+  }
+  function tutLine() {
+    if (coachHold && performance.now() < coachHold.until) return coachHold;
+    if (finished) return { t: 'That is every control you need.' };
+    if (jack) return { t: 'Jackknifed. Hold FWD to straighten out.', w: 1, cue: 'fwd' };
+    if (bumped) return { t: 'End of the lot. Hold FWD to pull forward.', w: 1, cue: 'fwd' };
+    return STEPS[tut.i];
+  }
+  function startTutorial() {
+    L = TUT; mode = 'game'; tut = { i: 0 };
+    $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = true; $('tutbar').hidden = false;
+    $('eyebrow').hidden = true; $('b-levels').hidden = false; $('b-levels').textContent = '‹ Exit';
+    $('title').textContent = TUT.name;
+    buildLevel(); reset(); fit();
+  }
+  function finishTutorial() {
+    finished = true; s.v = 0; onboarded = true; save('cdl.onboarded', '1');
+    $('sheet').innerHTML =
+      '<div class="sheet-head"><div><h2>Controls: done</h2><small>First Moves</small></div><div class="stamp pass">READY</div></div>' +
+      '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 puts those together in a straight lane, with the coach calling every turn.</p>' +
+      '<div class="btns"><button type="button" id="tomenu">Levels</button><button type="button" id="next" class="go">Start Level 1</button></div>';
+    $('sheet').hidden = false;
+    $('next').addEventListener('click', function () { startLevel(0); });
+    $('tomenu').addEventListener('click', showMenu);
+  }
+  function coaching() { return guideOn && !finished && L.kind !== 'tutorial'; }
+  function showWelcome() {
+    mode = 'menu';
+    $('welcome').hidden = false; $('menu').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
+    $('eyebrow').hidden = false; $('b-levels').hidden = true; $('title').textContent = 'Backing Course';
+  }
   var s, cones, steer = 0, pullups, enc, elapsed, started, finished, hasReversed, lastDir,
       dirty, bumped, jack, coachHold = null, coachedRun = false;
   var ptrDrive = 0, keys = {};
@@ -29,14 +83,16 @@
     started = false; finished = false; hasReversed = false; lastDir = 0;
     dirty = false; bumped = false; jack = false; coachHold = null; coachedRun = guideOn;
     camYaw = 0.3;
+    if (L.kind === 'tutorial' && tut) tutMark();
     $('sheet').hidden = true;
     setSteer(0);
   }
   function showMenu() {
     mode = 'menu'; ptrDrive = 0;
-    $('menu').hidden = false; $('game').hidden = true; $('stats').hidden = true;
+    $('menu').hidden = false; $('welcome').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
     $('eyebrow').hidden = false; $('b-levels').hidden = true;
     $('title').textContent = 'Backing Course';
+    if (!onboarded) { onboarded = true; save('cdl.onboarded', '1'); }
     var next = -1, html = '';
     LEVELS.forEach(function (lv, i) { if (next < 0 && !prog[lv.id]) next = i; });
     LEVELS.forEach(function (lv, i) {
@@ -54,7 +110,7 @@
   }
   function startLevel(i) {
     li = i; L = LEVELS[i]; mode = 'game';
-    $('menu').hidden = true; $('game').hidden = false; $('stats').hidden = false;
+    $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = false; $('tutbar').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false;
     $('b-levels').textContent = '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
     $('title').textContent = L.name;
@@ -72,7 +128,7 @@
     if (ks && !finished) setSteer(steer + ks * 1.6 * dt);
 
     var top = SPEED;
-    if (guideOn && drive < 0) top = SPEED * coachSpeed(Math.abs(recSteer(L, s) - steer));
+    if (guideOn && drive < 0 && L.kind !== 'tutorial') top = SPEED * coachSpeed(Math.abs(recSteer(L, s) - steer));
     s.v += (drive * top - s.v) * Math.min(1, dt * 6);
     if (Math.abs(s.v) < 0.02) { s.v = 0; return; }
 
@@ -110,6 +166,7 @@
 
   // ---- coach ----
   function coachLine() {
+    if (L.kind === 'tutorial') return tutLine();
     if (coachHold && performance.now() < coachHold.until) return coachHold;
     if (finished) return { t: 'Brake set. Your sheet is up.' };
     if (jack) return { t: 'Jackknifed. Pull forward to straighten out.', w: 1, cue: 'fwd' };
@@ -152,6 +209,11 @@
   // ---- finish ----
   function setBrake() {
     if (finished || mode !== 'game') return;
+    if (L.kind === 'tutorial') {
+      if (tut.i === STEPS.length - 1) finishTutorial();
+      else coachHold = { t: 'Not yet. Finish this step first: ' + STEPS[tut.i].t, w: 1, cue: STEPS[tut.i].cue, until: performance.now() + 2600 };
+      return;
+    }
     if (!docked()) {
       coachHold = { t: L.kind === 'dock' ? 'Not yet. The whole trailer has to be inside the alley before you set the brake.'
         : 'Not yet. Get the whole trailer into the lane and back to the yellow box.', w: 1, until: performance.now() + 3200 };
@@ -505,7 +567,7 @@
       var g = coneM[i]; if (!g) return;
       g.rotation.x = k.hit ? PI / 2 : 0; g.position.y = k.hit ? 0.7 : 0;
     });
-    var show = guideOn && !finished;
+    var show = coaching();
     marksG.visible = show; pathG.visible = show; axleMark.visible = show;
     if (show) {
       var tp = tailPath();
@@ -522,7 +584,7 @@
     sync();
     renderer.setScissorTest(false); renderer.clear(); renderer.shadowMap.needsUpdate = true;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, vw, vh);
-    var coached = guideOn && !finished;
+    var coached = coaching();
 
     if (viewMode === 'top') {
       cabG.visible = true;
@@ -580,7 +642,7 @@
   function wheelGfx(x, y, r) {
     var K = 120 * PI / 180;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, x, y); ctx.lineCap = 'round';
-    if (guideOn && !finished) {
+    if (coaching()) {
       var ta = recSteer(L, s) * K - PI / 2;
       ctx.strokeStyle = '#fff'; ctx.lineWidth = r * 0.1; ctx.beginPath();
       ctx.moveTo(Math.cos(ta) * r * 1.06, Math.sin(ta) * r * 1.06); ctx.lineTo(Math.cos(ta) * r * 1.3, Math.sin(ta) * r * 1.3); ctx.stroke();
@@ -616,19 +678,22 @@
 
   // ---- HUD ----
   var el = { pull: $('s-pull'), enc: $('s-enc'), time: $('s-time'), coach: $('coach'), wheel: $('wheel'), gauge: $('gauge'),
-             steer: $('steer'), target: $('target'), rev: $('p-rev'), fwd: $('p-fwd'), brake: $('b-brake') };
+             steer: $('steer'), target: $('target'), rev: $('p-rev'), fwd: $('p-fwd'), brake: $('b-brake'), center: $('b-center'), views: $('v-top').parentNode };
   function put(node, v) { if (node.textContent !== v) node.textContent = v; }
   function hud() {
     put(el.pull, String(pullups)); el.pull.classList.toggle('hot', pullups > L.free);
     put(el.enc, String(enc)); el.enc.classList.toggle('hot', enc > 0);
     put(el.time, clock(elapsed));
     var c = coachLine(); put(el.coach, c.t); el.coach.classList.toggle('warn', !!c.w);
-    var show = guideOn && !finished;
+    var show = coaching(), cues = (show || L.kind === 'tutorial') && !finished;
     el.target.hidden = !show;
     if (show) el.target.style.left = (50 + recSteer(L, s) * 47).toFixed(1) + '%';
-    el.rev.classList.toggle('cue', show && c.cue === 'rev' && ptrDrive !== -1 && !keys.ArrowDown);
-    el.fwd.classList.toggle('cue', show && c.cue === 'fwd' && ptrDrive !== 1 && !keys.ArrowUp);
+    el.rev.classList.toggle('cue', cues && c.cue === 'rev' && ptrDrive !== -1 && !keys.ArrowDown);
+    el.fwd.classList.toggle('cue', cues && c.cue === 'fwd' && ptrDrive !== 1 && !keys.ArrowUp);
     el.brake.classList.toggle('cue', !finished && c.cue === 'brake');
+    el.steer.classList.toggle('cue', cues && c.cue === 'steer');
+    el.center.classList.toggle('cue', cues && c.cue === 'center');
+    el.views.classList.toggle('cue', cues && c.cue === 'views');
   }
   function setSteer(v) {
     steer = Math.max(-1, Math.min(1, v));
@@ -672,6 +737,10 @@
   $('b-reset').addEventListener('click', reset);
   $('b-guide').addEventListener('click', function () { setCoach(!guideOn); });
   $('b-levels').addEventListener('click', showMenu);
+  $('b-skip').addEventListener('click', showMenu);
+  $('b-howto').addEventListener('click', startTutorial);
+  $('w-new').addEventListener('click', startTutorial);
+  $('w-skip').addEventListener('click', showMenu);
   $('levels').addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('.lvl') : null;
     if (b && !b.disabled) startLevel(+b.getAttribute('data-i'));
@@ -689,13 +758,15 @@
 
   // ---- loop ----
   function start() {
-    reset(); setView(viewMode); setCoach(guideOn); showMenu();
+    reset(); setView(viewMode); setCoach(guideOn);
+    if (onboarded) showMenu(); else showWelcome();
     if (window.ResizeObserver) new ResizeObserver(fit).observe(yard); else window.addEventListener('resize', fit);
     var last = performance.now();
     (function frame(now) {
       var dt = Math.min(0.05, (now - last) / 1000); last = now;
       if (mode === 'game') {
         step(dt);
+        if (L.kind === 'tutorial') tutTick();
         if (started && !finished) elapsed += dt;
         draw(); hud();
       }
