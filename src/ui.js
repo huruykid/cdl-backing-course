@@ -127,8 +127,7 @@
     var ks = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
     if (ks && !finished) setSteer(steer + ks * 1.6 * dt);
 
-    var top = SPEED;
-    if (guideOn && drive < 0 && L.kind !== 'tutorial') top = SPEED * coachSpeed(Math.abs(recSteer(L, s) - steer));
+    var top = drive > 0 ? FWD_SPEED : SPEED;
     s.v += (drive * top - s.v) * Math.min(1, dt * 6);
     if (Math.abs(s.v) < 0.02) { s.v = 0; return; }
 
@@ -481,7 +480,7 @@
   function tailPath() {
     var g = { x: s.x, y: s.y, t1: s.t1, t2: s.t2 }, out = [rearPoint(g)];
     for (var i = 0; i < 44; i++) {
-      advance(g, -SPEED, steer * MAXD, 0.08);
+      advance(g, -7, steer * MAXD, 0.08);
       if (Math.abs(norm(g.t1 - g.t2)) > JACK) break;
       out.push(rearPoint(g));
     }

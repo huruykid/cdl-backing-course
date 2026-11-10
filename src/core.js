@@ -1,6 +1,7 @@
   // ---- world, in feet ----
   var W = 100, H = 122, PI = Math.PI;
-  var L1 = 11, L2 = 28, MAXD = 0.7, SPEED = 7, JACK = 1.4, CONE_R = 0.8, PASS_AT = 6;
+  var L1 = 11, L2 = 28, MAXD = 0.7, SPEED = 3.5, FWD_SPEED = 5,      // ft/s: backing is near idle; pulling up is a little quicker
+       JACK = 1.4, CONE_R = 0.8, PASS_AT = 6;
   var TR = { f: 14, r: -2, w: 8 };       // tractor body, measured from the drive axle
   var TL = { f: 3, r: -33, w: 8.5 };     // trailer body, measured from the kingpin
 
@@ -110,4 +111,3 @@
     var d = Math.atan(L1 * (Math.sin(phi) / L2 + 0.25 * (phi - aim)));
     return Math.max(-1, Math.min(1, d / MAXD));
   }
-  function coachSpeed(gap) { return 0.9 * Math.max(0.4, Math.min(1, 1 - (gap - 0.25) / 0.5)); }
