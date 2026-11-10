@@ -2,19 +2,19 @@
 
 A browser game that teaches the CDL basic control skills. Six levels, easiest first.
 
-The current skills test:
+Core control drills:
 
 1. Forward Stop
 2. Straight Back
 3. Forward Offset
 4. Reverse Offset
 
-The older test, still used at some sites:
+Docking challenges:
 
 5. Wide Dock (90° into a 20-foot alley)
 6. Alley Dock (12 feet wide, 3-foot stop box)
 
-Lane sizes and point values are the game's own practice settings. The official ones are not published.
+Lane sizes and point values are the game's own practice settings. They have not been verified against an official test manual.
 
 Three camera views (overhead, driver's window, driver's seat with mirrors), a turn-by-turn coach, and an examiner-style score sheet.
 

@@ -103,3 +103,31 @@ test('stopping outside the yellow box fails even with points below the threshold
   const g = game(); drive(g, 1, 3, true); g.setBrake();
   assert.equal(g.finished, true); assert.equal(g.prog.fstop, undefined);
 });
+
+test('pedals only accept their captured pointer and canceled holds cannot resume on hover', () => {
+  const g = game();
+  vm.runInContext(source('ui.js').split('  var pedalRelease = [];')[1].split('  (function () {      // drag on the pad')[0].replace(/^/, 'var pedalRelease = [];'), g);
+  function pedal() {
+    const handlers = {}, fill = { style: {} };
+    const node = { querySelector: () => fill, classList: { add() {}, remove() {} }, setPointerCapture() {},
+      getBoundingClientRect: () => ({ top: 0, height: 100 }), addEventListener: (type, fn) => handlers[type] = fn };
+    return { node, send: (type, pointerId, y = 10) => handlers[type]({pointerId, clientY: y, pointerType: 'touch', preventDefault() {}}) };
+  }
+  const fwd = pedal(), rev = pedal(); g.hold(fwd.node, 1); g.hold(rev.node, -1);
+  fwd.send('pointerdown', 1); assert.ok(g.ptrDrive > 0);
+  fwd.send('pointermove', 2, 100); assert.equal(g.ptrDrive, 1);
+  rev.send('pointerdown', 2); assert.ok(g.ptrDrive < 0);
+  fwd.send('pointerup', 1); assert.ok(g.ptrDrive < 0);
+  rev.send('pointercancel', 2); assert.equal(g.ptrDrive, 0);
+  rev.send('pointermove', 2); assert.equal(g.ptrDrive, 0);
+  g.pauseGame(); fwd.send('pointerdown', 3); assert.equal(g.ptrDrive, 0);
+});
+
+test('three-star progress survives a later coached pass and reload', () => {
+  const g = game(); g.guideOn = false; g.reset();
+  g.s = { x:70,y:21,t1:-Math.PI/2,t2:-Math.PI/2,v:0 }; g.started = true; g.setBrake();
+  assert.equal(g.prog.fstop.stars, 3);
+  g.guideOn = true; g.reset(); g.s = { x:70,y:21,t1:-Math.PI/2,t2:-Math.PI/2,v:0 }; g.started = true; g.setBrake();
+  assert.equal(g.prog.fstop.stars, 3);
+  const reload = game(g.storage); assert.equal(reload.prog.fstop.stars, 3); assert.equal(reload.unlocked(1), true);
+});

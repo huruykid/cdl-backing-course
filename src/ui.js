@@ -8,7 +8,14 @@
   // ---- saved progress ----
   var prog = {}, guideOn = true, viewMode = 'top', onboarded = false;
   try {
-    prog = JSON.parse(localStorage.getItem('cdl.progress')) || {};
+    var savedProgress = JSON.parse(localStorage.getItem('cdl.progress')) || {};
+    LEVELS.forEach(function (lv) {
+      var p = savedProgress[lv.id];
+      if (p && Number.isInteger(p.stars) && p.stars >= 1 && p.stars <= 3) {
+        prog[lv.id] = { stars: p.stars };
+        if (Number.isFinite(p.pts) && p.pts >= 0 && Number.isFinite(p.time) && p.time >= 0) { prog[lv.id].pts = p.pts; prog[lv.id].time = p.time; }
+      }
+    });
     onboarded = localStorage.getItem('cdl.onboarded') === '1' || Object.keys(prog).length > 0;
     if (localStorage.getItem('cdl.coach') === 'off') guideOn = false;
     var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
@@ -52,7 +59,7 @@
     return STEPS[tut.i];
   }
   function startTutorial() {
-    stopReplay(); L = TUT; mode = 'game'; tut = { i: 0 };
+    stopReplay(); $('b-pause').hidden = false; L = TUT; mode = 'game'; tut = { i: 0 };
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = true; $('tutbar').hidden = false;
     $('v-goal').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false; $('b-levels').textContent = '‹ Exit';
@@ -60,7 +67,7 @@
     buildLevel(); reset(); fit();
   }
   function finishTutorial() {
-    finished = true; releaseControls(); chime('win'); s.v = 0; onboarded = true; save('cdl.onboarded', '1');
+    $('b-pause').hidden = true; finished = true; releaseControls(); chime('win'); s.v = 0; onboarded = true; save('cdl.onboarded', '1');
     $('sheet').innerHTML =
       '<div class="sheet-head"><div><h2>Controls: done</h2><small>First Moves</small></div><div class="stamp pass">READY</div></div>' +
       '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 starts simple: drive down a lane and stop in the box, with the coach calling every move.</p>' +
@@ -71,7 +78,7 @@
   }
   function coaching() { return guideOn && !finished && L.kind !== 'tutorial'; }
   function showWelcome() {
-    mode = 'menu';
+    mode = 'menu'; $('b-pause').hidden = true;
     $('welcome').hidden = false; $('menu').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
     $('eyebrow').hidden = false; $('b-levels').hidden = true; $('title').textContent = 'Backing Course';
   }
@@ -81,7 +88,7 @@
   var ptrDrive = 0, keys = {}, keyAmt = 0.35, looking = false, looks = 0, goalYaw = 0.9;
 
   function reset() {
-    stopReplay(); releaseControls(); paused = false; $('pause-panel').hidden = true;
+    stopReplay(); releaseControls(); paused = false; $('pause-panel').hidden = true; $('b-pause').hidden = mode !== 'game';
     history = []; recordingTime = 0; sampleAt = 0; wasBoxed = false;
     if (tut && L.kind === 'tutorial') tut.i = 0;
     s = { x: L.start.x, y: L.start.y, t1: L.start.t1, t2: L.start.t2, v: 0 };
@@ -97,6 +104,7 @@
   }
   function showMenu() {
     stopReplay(); releaseControls(); paused = false; $('pause-panel').hidden = true; mode = 'menu';
+    $('b-pause').hidden = true;
     $('menu').hidden = false; $('welcome').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
     $('eyebrow').hidden = false; $('b-levels').hidden = true;
     $('title').textContent = 'Backing Course';
@@ -122,7 +130,7 @@
     box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '8px';
   }
   function startLevel(i) {
-    stopReplay(); tut = null; li = i; L = LEVELS[i]; mode = 'game';
+    stopReplay(); $('b-pause').hidden = false; tut = null; li = i; L = LEVELS[i]; mode = 'game';
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = false; $('tutbar').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false;
     $('b-levels').textContent = '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
@@ -278,7 +286,7 @@
       return;
     }
     if (moving && L.count === 'stops') pullups++;
-    moving = false; finished = true; s.v = 0; releaseControls(); history.push(snapshot());
+    $('b-pause').hidden = true; moving = false; finished = true; s.v = 0; releaseControls(); history.push(snapshot());
     var extra = Math.max(0, pullups - L.free);
     var boxed = inBox();
     var extraLooks = L.looksFree == null ? 0 : Math.max(0, looks - L.looksFree);
@@ -314,10 +322,10 @@
       tr('Trailer angle', deg.toFixed(1) + '° off straight', '') +
       tr('Time', clock(elapsed), '') +
       '<tr class="total"><td>Points</td><td></td><td>' + pts + '</td></tr></table>' +
-      '<p class="earned" aria-label="' + stars + ' of 3 stars">' + starStr(stars) + '</p>' +
+      '<p class="earned" role="img" aria-label="' + stars + ' of 3 stars">' + starStr(stars) + '</p>' +
       '<p class="note">' + note + '</p>' +
       '<p class="note">' + (enc ? 'Next attempt: slow down before the boundary and use small steering corrections.' : !boxed ? 'Next attempt: feather the pedal as you reach the yellow stop area.' : trackMiss ? 'Next attempt: keep the trailer wheels outside the tracking line until they pass the cone.' : extra ? 'Next attempt: straighten earlier to reduce corrections.' : 'Keep this control: steady steering and a deliberate stop.') + '</p>' +
-      '<p class="practice-note">Game scoring: pass at 6 points or fewer. Not an official CDL test score.</p>' +
+      '<p class="practice-note">Reach the target with 6 points or fewer to pass. Not an official CDL test score.</p>' +
       (history.length > 2 ? '<button type="button" id="watch-replay" class="replay-button">Watch replay</button>' : '') +
       '<div class="btns"><button type="button" id="again"' + (pass && hasNext ? '' : ' class="go"') + '>Again</button>' +
       (pass && hasNext ? '<button type="button" id="next" class="go">Next level</button>' : '<button type="button" id="tomenu">Levels</button>') + '</div>';
@@ -334,7 +342,15 @@
   // ---- drawing: a 3D scene (three.js) with a 2D overlay canvas for labels and the cab interior ----
   var cv = $('cv'), ctx = cv.getContext('2d'), yard = $('yard');
   var view = { w: 1, h: 1, dpr: 1 };
-  var T = THREE, renderer = new T.WebGLRenderer({ canvas: $('gl'), antialias: true });
+  function bootError(message) {
+    $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = true;
+    $('b-sound').hidden = true; $('b-pause').hidden = true;
+    $('boot-message').textContent = message; $('boot-error').hidden = false;
+  }
+  var T = window.THREE, renderer;
+  if (!T) { bootError('The 3D engine did not download. Check your connection and try again.'); return; }
+  try { renderer = new T.WebGLRenderer({ canvas: $('gl'), antialias: true }); }
+  catch (e) { bootError('This browser could not start 3D graphics. Try a browser with WebGL enabled.'); return; }
   renderer.autoClear = false; renderer.outputEncoding = T.sRGBEncoding;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
   function col(c) { return new T.Color(c).convertSRGBToLinear(); }
@@ -427,7 +443,7 @@
     amber: lit('#ffb020'), tail: lit('#c81e24'), lamp: lit('#fff6dc'), rubber: mat('#1b1d1f'),
     box: new T.MeshBasicMaterial({ color: col('#f2c230'), transparent: true, opacity: 0.45, side: T.DoubleSide, depthWrite: false })
   };
-  function padMat(w, d) { var t = texPad.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, w / 32), Math.max(1, d / 32)); return mapped(t); }
+  function padMat(w, d) { var t = texPad.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, w / 32), Math.max(1, d / 32)); var mat = mapped(t); mat.userData.levelOwned = true; return mat; }
 
   // Model space: x forward, y up, z toward the passenger side. World: x across the pad, z down the pad.
   function bx(parent, lx, ly, lz, x, y, z, m, cast) {
@@ -568,6 +584,10 @@
     g.rotation.y = -Math.atan2(y2 - y1, x2 - x1); return g;
   }
   function buildLevel() {
+    levelG.traverse(function (obj) {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material && obj.material.userData.levelOwned) { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+    });
     while (levelG.children.length) levelG.remove(levelG.children[0]);
     marksG = new T.Group(); levelG.add(marksG); coneM = [];
     L.zones.forEach(function (r) { flat(levelG, r, 0.02, padMat(r[2] - r[0], r[3] - r[1])).receiveShadow = true; });

@@ -65,7 +65,7 @@
   }
   var LEVELS = [
     {
-      id: 'fstop', group: 'Current skills test', name: 'Forward Stop', sub: 'Drive down the lane and stop with the front bumper in the box.',
+      id: 'fstop', group: 'Core control drills', name: 'Forward Stop', sub: 'Drive down the lane and stop with the front bumper in the box.',
       brief: 'Drive forward down the lane and stop with the front bumper in the yellow box. You get one stop.',
       kind: 'lane', dir: 'fwd', finish: 'front', count: 'stops', free: 1, lineX: 70,
       start: { x: 70.6, y: 82, t1: -PI / 2 + 0.05, t2: -PI / 2 - 0.03 },
@@ -77,7 +77,7 @@
       labels: [{ t: 'STOP BOX  5 FT', x: 70, y: 1.6 }]
     },
     laneLevel({
-      id: 'straight', group: 'Current skills test', name: 'Straight Back', sub: 'Back down a wide lane and stop in the box.',
+      id: 'straight', group: 'Core control drills', name: 'Straight Back', sub: 'Back down a wide lane and stop in the box.',
       brief: 'Back straight down the lane and stop with the trailer rear in the yellow box.',
       free: 1, looksFree: 1, lane: [61, 79],
       start: { x: 71, y: 30, t1: -PI / 2 - 0.05, t2: -PI / 2 + 0.06 },
@@ -88,7 +88,7 @@
       labels: [{ t: 'LANE  18 FT', x: 70, y: 124, hide: 1 }]
     }),
     {
-      id: 'foffset', group: 'Current skills test', name: 'Forward Offset', sub: 'Drive forward and move over one lane without cutting the corner.',
+      id: 'foffset', group: 'Core control drills', name: 'Forward Offset', sub: 'Drive forward and move over one lane without cutting the corner.',
       brief: 'Drive forward and move into the left lane. Keep the trailer wheels right of the white line until they pass the cone, then stop in the yellow zone.',
       kind: 'lane', dir: 'fwd', finish: 'park', count: 'backups', free: 0, lineX: 54, path: offsetPath, look: 20,
       start: { x: 66, y: 86, t1: -PI / 2, t2: -PI / 2 },
@@ -101,7 +101,7 @@
       labels: [{ t: 'STOP ZONE', x: 54, y: 83.5 }, { t: 'TRACKING LINE', x: 66, y: 123.5, hide: 1 }]
     },
     laneLevel({
-      id: 'offset', group: 'Current skills test', name: 'Reverse Offset', sub: 'Back from the right lane into the left one and stop in the 3-foot box.',
+      id: 'offset', group: 'Core control drills', name: 'Reverse Offset', sub: 'Back from the right lane into the left one and stop in the 3-foot box.',
       brief: 'Back out of the right lane and into the left lane. Stop with the trailer rear in the 3-foot yellow box.',
       free: 2, looksFree: 2, lane: [53, 71], boxDepth: 3,
       start: { x: 77, y: 20, t1: -PI / 2, t2: -PI / 2 },
@@ -111,8 +111,8 @@
       dockZone: [53, 60, 71, 118.01],
       labels: []
     }),
-    dockLevel({ id: 'wide', group: 'Older test, still used at some sites', name: 'Wide Dock', sub: 'A 90° back into a 20-foot alley.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 4, width: 20, boxDepth: 6 }),
-    dockLevel({ id: 'alley', group: 'Older test, still used at some sites', name: 'Alley Dock', sub: 'A 90° back into a 12-foot alley with a 3-foot stop box.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 2, width: 12, boxDepth: 3 })
+    dockLevel({ id: 'wide', group: 'Docking challenges', name: 'Wide Dock', sub: 'A 90° back into a 20-foot alley.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 4, width: 20, boxDepth: 6 }),
+    dockLevel({ id: 'alley', group: 'Docking challenges', name: 'Alley Dock', sub: 'A 90° back into a 12-foot alley with a 3-foot stop box.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 2, width: 12, boxDepth: 3 })
   ];
 
   function inBounds(L, p) { return L.zones.some(function (r) { return inRect(p, r); }); }
