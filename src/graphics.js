@@ -176,7 +176,7 @@
         brakeMat.color.copy(col(braking?'#ff3926':'#861d18'));
       },
       monitor:function(now,idle){
-        if(idle){stamp=now;samples=0;slow=0;settled=0;return;}
+        if(idle){stamp=now;samples=0;slow=0;settled=0;frameTotal=0;return;}
         if(!stamp){stamp=now;return;}
         var ms=now-stamp;stamp=now;
         if(ms>250)return; // ignore tab transitions and debugger pauses
