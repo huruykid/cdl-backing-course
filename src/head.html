@@ -102,6 +102,7 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .views { position: absolute; top: 8px; left: 8px; display: flex; border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,.35); background: rgba(20,22,24,.78); }
 .views button { border: 0; background: transparent; color: var(--text); cursor: pointer; min-height: 36px; padding: 0 11px; font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; touch-action: manipulation; }
 .views button[aria-pressed="true"] { background: var(--paint); color: var(--ink); }
+.views #v-goal { border-left: 1px solid rgba(255,255,255,.35); }
 
 /* examiner's sheet */
 .sheet {
@@ -162,11 +163,13 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 .gauge i { position: absolute; top: -4px; left: 50%; width: 6px; height: 14px; margin-left: -3px; border-radius: 2px; background: var(--paint); }
 .pedal {
   width: 76px; flex: none; border: 0; border-radius: 6px; cursor: pointer; touch-action: none;
+  position: relative; overflow: hidden; isolation: isolate;
   background: repeating-linear-gradient(0deg, var(--steel) 0 9px, #43484d 9px 11px);
   color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 0 10px;
   font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .05em;
 }
-.pedal small { font-family: var(--body); font-weight: 500; font-size: 11px; letter-spacing: 0; color: var(--soft); }
+.pedal small { font-family: var(--body); font-weight: 500; font-size: 10px; letter-spacing: 0; color: var(--soft); white-space: nowrap; }
+.pedal .amt { position: absolute; left: 0; right: 0; bottom: 0; height: 0; z-index: -1; background: rgba(242,194,48,.32); }
 .pedal.down { background: repeating-linear-gradient(0deg, var(--steel-hi) 0 9px, #555b61 9px 11px); transform: translateY(2px); }
 .cue { animation: cue 1s ease-in-out infinite; }
 @keyframes cue { 50% { box-shadow: 0 0 0 3px #fff; } }
@@ -235,6 +238,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
         <button type="button" id="v-top" aria-pressed="true">Top</button>
         <button type="button" id="v-cab" aria-pressed="false">Window</button>
         <button type="button" id="v-seat" aria-pressed="false">Seat</button>
+        <button type="button" id="v-goal" aria-pressed="false">Get out</button>
       </div>
       <section class="sheet" id="sheet" hidden aria-live="polite"></section>
     </div>
@@ -258,12 +262,12 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
         <div class="steer-info">
           <div class="steer-label">Steering</div>
           <div class="steer-hint touch">Drag left or right.</div>
-          <div class="steer-hint keys">Arrows drive and steer. Space: brake. C: center. V: view. R: reset.</div>
+          <div class="steer-hint keys">Arrows drive and steer. Space: brake. C: center. V: view. G: get out. R: reset.</div>
           <div class="gauge"><b id="target"></b><i id="gauge"></i></div>
         </div>
       </div>
-      <button class="pedal" id="p-rev" type="button" aria-label="Reverse, hold to back up">REV<small>hold</small></button>
-      <button class="pedal" id="p-fwd" type="button" aria-label="Forward, hold to pull up">FWD<small>hold</small></button>
+      <button class="pedal" id="p-rev" type="button" aria-label="Reverse. Hold to back up; press higher on the pedal for more speed">REV<small>up = faster</small><i class="amt"></i></button>
+      <button class="pedal" id="p-fwd" type="button" aria-label="Forward. Hold to pull up; press higher on the pedal for more speed">FWD<small>up = faster</small><i class="amt"></i></button>
     </div>
   </div>
 </div>

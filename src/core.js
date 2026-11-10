@@ -45,7 +45,7 @@
   }
   function dockLevel(o) {
     var yc = 105, y0 = yc - o.width / 2, y1 = yc + o.width / 2, m = 42, d = 2, b = d + o.boxDepth;
-    o.kind = 'dock';
+    o.kind = 'dock'; o.looksFree = 2;
     o.start = { x: 70, y: 44, t1: -PI / 2, t2: -PI / 2 };
     o.zones = [[m, 2, 98, 120], [d, y0, m, y1]];
     o.lines = [[m, y0, m, 2], [m, 2, 98, 2], [98, 2, 98, 120], [98, 120, m, 120], [m, 120, m, y1], [m, y1, d, y1], [m, y0, d, y0], [b, y0, b, y1]];
@@ -79,7 +79,7 @@
     laneLevel({
       id: 'straight', group: 'Current skills test', name: 'Straight Back', sub: 'Back down a wide lane and stop in the box.',
       brief: 'Back straight down the lane and stop with the trailer rear in the yellow box.',
-      free: 1, lane: [61, 79],
+      free: 1, looksFree: 1, lane: [61, 79],
       start: { x: 71, y: 30, t1: -PI / 2 - 0.05, t2: -PI / 2 + 0.06 },
       zones: [[61, 2, 79, 118]],
       lines: [[61, 2, 61, 118], [79, 2, 79, 118], [61, 2, 79, 2], [61, 118, 79, 118]],
@@ -103,7 +103,7 @@
     laneLevel({
       id: 'offset', group: 'Current skills test', name: 'Reverse Offset', sub: 'Back from the right lane into the left one and stop in the 3-foot box.',
       brief: 'Back out of the right lane and into the left lane. Stop with the trailer rear in the 3-foot yellow box.',
-      free: 2, lane: [53, 71], boxDepth: 3,
+      free: 2, looksFree: 2, lane: [53, 71], boxDepth: 3,
       start: { x: 77, y: 20, t1: -PI / 2, t2: -PI / 2 },
       zones: [[53, 2, 98, 84], [53, 84, 71, 118]],
       lines: [[53, 2, 53, 118], [53, 2, 98, 2], [98, 2, 98, 84], [98, 84, 71, 84], [71, 84, 71, 118], [53, 118, 71, 118]],

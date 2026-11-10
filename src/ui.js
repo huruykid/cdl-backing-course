@@ -30,7 +30,7 @@
   var tut = null;
   function moved() { return Math.hypot(s.x - tut.s0.x, s.y - tut.s0.y); }
   var STEPS = [
-    { t: 'Hold FWD to pull forward.', cue: 'fwd', done: function () { return moved() > 10; } },
+    { t: 'Hold FWD to pull forward. Press higher on the pedal to go faster.', cue: 'fwd', done: function () { return moved() > 10; } },
     { t: 'Drag the steering wheel all the way right.', cue: 'steer', done: function () { return steer > 0.75; } },
     { t: 'Now drag it all the way left.', cue: 'steer', done: function () { return steer < -0.75; } },
     { t: 'Tap Center to straighten the wheel.', cue: 'center', done: function () { return Math.abs(steer) < 0.03; } },
@@ -54,6 +54,7 @@
   function startTutorial() {
     L = TUT; mode = 'game'; tut = { i: 0 };
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = true; $('tutbar').hidden = false;
+    $('v-goal').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false; $('b-levels').textContent = '‹ Exit';
     $('title').textContent = TUT.name;
     buildLevel(); reset(); fit();
@@ -77,7 +78,7 @@
   var s, cones, steer = 0, pullups, enc, elapsed, started, finished, hasReversed, lastDir,
       dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0,
       moving = false, backArmed = false, revFt = 0, gateDone = false, trackMiss = false;
-  var ptrDrive = 0, keys = {};
+  var ptrDrive = 0, keys = {}, keyAmt = 0.35, looking = false, looks = 0, goalYaw = 0.9;
 
   function reset() {
     s = { x: L.start.x, y: L.start.y, t1: L.start.t1, t2: L.start.t2, v: 0 };
@@ -86,7 +87,7 @@
     started = false; finished = false; hasReversed = false; lastDir = 0; pullArmed = false; fwdFt = 0; endAt = 0;
     moving = false; backArmed = false; revFt = 0; gateDone = false; trackMiss = false;
     dirty = false; bumped = false; jack = false; coachHold = null; coachedRun = guideOn;
-    camYaw = 0.3;
+    camYaw = 0.3; looks = 0; endLook();
     if (L.kind === 'tutorial' && tut) tutMark();
     $('sheet').hidden = true;
     setSteer(0);
@@ -120,6 +121,7 @@
     $('b-levels').textContent = '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
     $('title').textContent = L.name;
     $('l-pull').textContent = COUNT[L.count || 'pullups'];
+    $('v-goal').hidden = L.looksFree == null;
     buildLevel(); reset(); fit();
   }
 
@@ -129,7 +131,8 @@
   // ---- simulation ----
   function step(dt) {
     var kd = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
-    var drive = finished ? 0 : (ptrDrive || kd);
+    keyAmt = kd ? Math.min(1, keyAmt + dt / 0.9) : 0.35;      // holding a key eases the throttle in
+    var drive = (finished || looking) ? 0 : (ptrDrive || kd * keyAmt);
     var ks = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
     if (ks && !finished) setSteer(steer + ks * 1.6 * dt);
 
@@ -181,6 +184,21 @@
   }
   function restore(p) { s.x = p.x; s.y = p.y; s.t1 = p.t1; s.t2 = p.t2; s.v = 0; }
 
+  // ---- get out and look: stop, step out, walk around the trailer. The clock stops; looks are counted. ----
+  function endLook() {
+    looking = false;
+    var b = $('v-goal'); b.textContent = 'Get out'; b.setAttribute('aria-pressed', false);
+  }
+  function toggleLook() {
+    if (mode !== 'game' || finished || L.looksFree == null) return;
+    if (looking) { endLook(); return; }
+    if (Math.abs(s.v) > 0.05 || ptrDrive || keys.ArrowUp || keys.ArrowDown) {
+      coachHold = { t: 'Stop the truck before you get out.', w: 1, until: performance.now() + 2600 }; return;
+    }
+    looking = true; looks++; goalYaw = 0.9;
+    var b = $('v-goal'); b.textContent = 'Get in'; b.setAttribute('aria-pressed', true);
+  }
+
   // ---- coach ----
   function fwdLine() {
     if (!guideOn) return { t: !started ? L.brief : L.finish === 'front' ? 'Stop with the front bumper in the yellow box.' : 'The trailer cuts corners. Watch its wheels, not the cab.' };
@@ -195,6 +213,7 @@
   }
   function coachLine() {
     if (L.kind === 'tutorial') return tutLine();
+    if (looking) return { t: 'You are out of the cab and the clock is stopped. Drag to walk around. ' + (looks <= L.looksFree ? 'Look ' + looks + ' of ' + L.looksFree + ' free.' : 'This extra look costs 1 point.') };
     if (coachHold && performance.now() < coachHold.until) return coachHold;
     if (finished) return { t: 'Brake set. Your sheet is up.' };
     if (jack) return { t: 'Jackknifed. Pull forward to straighten out.', w: 1, cue: 'fwd' };
@@ -243,6 +262,7 @@
       else coachHold = { t: 'Not yet. Finish this step first: ' + STEPS[tut.i].t, w: 1, cue: STEPS[tut.i].cue, until: performance.now() + 2600 };
       return;
     }
+    if (looking) endLook();
     var dnf = !docked();
     if (dnf && !(endAt && performance.now() < endAt)) {
       endAt = performance.now() + 4000;
@@ -252,7 +272,8 @@
     finished = true; s.v = 0;
     var extra = Math.max(0, pullups - L.free);
     var boxed = inBox();
-    var pts = extra + enc * 2 + (boxed ? 0 : 4) + (trackMiss ? 2 : 0);
+    var extraLooks = L.looksFree == null ? 0 : Math.max(0, looks - L.looksFree);
+    var pts = extra + extraLooks + enc * 2 + (boxed ? 0 : 4) + (trackMiss ? 2 : 0);
     var deg = Math.abs(norm(L.kind === 'dock' ? s.t2 : s.t2 + PI / 2)) * 180 / PI;
     var pass = !dnf && pts <= PASS_AT;
     var stars = !pass ? 0 : coachedRun ? 1 : pts <= 1 ? 3 : 2;
@@ -276,6 +297,7 @@
       '<table>' +
       tr(COUNT[L.count || 'pullups'], pullups + ' (' + L.free + ' free)', extra) +
       (L.gate ? tr('Tracking line', trackMiss ? 'trailer cut inside' : 'held', trackMiss ? 2 : 0) : '') +
+      (L.looksFree != null ? tr('Looks', looks + ' (' + L.looksFree + ' free)', extraLooks) : '') +
       tr('Encroachments', enc + ' × 2', enc * 2) +
       tr('Final position', dnf ? 'did not finish' : boxed ? (L.posOk || 'in stop box') : (L.posBad || 'short of box'), boxed ? 0 : 4) +
       tr('Trailer angle', deg.toFixed(1) + '° off straight', '') +
@@ -619,6 +641,14 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, vw, vh);
     var coached = coaching();
 
+    if (looking) {      // on foot, a few steps from the trailer's rear corner
+      var rp = rearPoint(s), ga = s.t2 + PI + goalYaw;
+      var eye = { x: Math.max(5, rp.x + 24 * Math.cos(ga)), y: rp.y + 24 * Math.sin(ga) };
+      cabG.visible = true;
+      eyePass(eye, 5.6, Math.atan2(rp.y - eye.y, rp.x - eye.x), 0.06, w * 0.7, 0, 0, w, h);
+      caption('OUT OF THE CAB · DRAG TO WALK AROUND');
+      return;
+    }
     if (viewMode === 'top') {
       cabG.visible = true;
       var k = topPass(0, 0, w, h) * dpr, ox = vw / 2 - W / 2 * k, oy = vh / 2 - H / 2 * k;
@@ -696,6 +726,7 @@
     ctx.fillText(t, 10 * view.dpr, cv.height - 10 * view.dpr);
   }
   function setView(m) {
+    if (looking) endLook();
     viewMode = m;
     $('v-top').setAttribute('aria-pressed', m === 'top');
     $('v-cab').setAttribute('aria-pressed', m === 'cab');
@@ -725,8 +756,8 @@
     var show = coaching(), cues = (show || L.kind === 'tutorial') && !finished;
     el.target.hidden = !show;
     if (show) el.target.style.left = (50 + recSteer(L, s) * 47).toFixed(1) + '%';
-    el.rev.classList.toggle('cue', cues && c.cue === 'rev' && ptrDrive !== -1 && !keys.ArrowDown);
-    el.fwd.classList.toggle('cue', cues && c.cue === 'fwd' && ptrDrive !== 1 && !keys.ArrowUp);
+    el.rev.classList.toggle('cue', cues && c.cue === 'rev' && ptrDrive >= 0 && !keys.ArrowDown);
+    el.fwd.classList.toggle('cue', cues && c.cue === 'fwd' && ptrDrive <= 0 && !keys.ArrowUp);
     el.brake.classList.toggle('cue', !finished && c.cue === 'brake');
     el.steer.classList.toggle('cue', cues && c.cue === 'steer');
     el.center.classList.toggle('cue', cues && c.cue === 'center');
@@ -755,20 +786,35 @@
       el.steer.addEventListener(n, function (e) { if (drag && e.pointerId === drag.id) drag = null; });
     });
   })();
+  // Pedals are analog: the higher you press, the more throttle. The lower third feathers it.
   function hold(node, dir) {
+    var fill = node.querySelector('.amt');
+    function set(e) {
+      var r = node.getBoundingClientRect(), f = 1 - (e.clientY - r.top) / r.height;
+      var amt = Math.max(0.35, Math.min(1, 0.35 + f * 1.1));
+      ptrDrive = dir * amt; if (fill) fill.style.height = Math.round(amt * 100) + '%';
+    }
     node.addEventListener('pointerdown', function (e) {
-      e.preventDefault(); node.setPointerCapture(e.pointerId); ptrDrive = dir; node.classList.add('down');
+      e.preventDefault(); node.setPointerCapture(e.pointerId); set(e); node.classList.add('down');
     });
+    node.addEventListener('pointermove', function (e) { if (ptrDrive * dir > 0) set(e); });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) {
-      node.addEventListener(n, function () { if (ptrDrive === dir) ptrDrive = 0; node.classList.remove('down'); });
+      node.addEventListener(n, function () { if (ptrDrive * dir > 0) ptrDrive = 0; if (fill) fill.style.height = '0'; node.classList.remove('down'); });
     });
     node.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
+  (function () {      // drag on the pad to walk around while out of the cab
+    var gl = $('gl'), d = null;
+    gl.addEventListener('pointerdown', function (e) { if (!looking) return; gl.setPointerCapture(e.pointerId); d = { id: e.pointerId, x: e.clientX, y0: goalYaw }; });
+    gl.addEventListener('pointermove', function (e) { if (d && e.pointerId === d.id && looking) goalYaw = d.y0 + (e.clientX - d.x) * 0.012; });
+    ['pointerup', 'pointercancel'].forEach(function (n) { gl.addEventListener(n, function () { d = null; }); });
+  })();
   hold(el.rev, -1);
   hold(el.fwd, 1);
   $('v-top').addEventListener('click', function () { setView('top'); });
   $('v-cab').addEventListener('click', function () { setView('cab'); });
   $('v-seat').addEventListener('click', function () { setView('seat'); });
+  $('v-goal').addEventListener('click', toggleLook);
   $('b-brake').addEventListener('click', setBrake);
   $('b-center').addEventListener('click', function () { if (!finished) setSteer(0); });
   $('b-reset').addEventListener('click', reset);
@@ -788,6 +834,7 @@
     else if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setBrake(); }
     else if (e.key === 'c' || e.key === 'C') { if (!finished) setSteer(0); }
     else if (e.key === 'r' || e.key === 'R') { reset(); }
+    else if (e.key === 'g' || e.key === 'G') { toggleLook(); }
     else if (e.key === 'v' || e.key === 'V') { setView(viewMode === 'top' ? 'cab' : viewMode === 'cab' ? 'seat' : 'top'); }
   });
   window.addEventListener('keyup', function (e) { keys[e.key] = false; });
@@ -804,7 +851,7 @@
       if (mode === 'game') {
         step(dt);
         if (L.kind === 'tutorial') tutTick();
-        if (started && !finished) elapsed += dt;
+        if (started && !finished && !looking) elapsed += dt;
         draw(); hud();
       }
       requestAnimationFrame(frame);
