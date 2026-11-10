@@ -42,7 +42,7 @@
   function tutMark() { tut.s0 = { x: s.x, y: s.y, t2: s.t2 }; tut.view0 = viewMode; $('tutstep').textContent = 'Step ' + (tut.i + 1) + ' of ' + STEPS.length; }
   function tutTick() {
     if (!tut || finished || !STEPS[tut.i].done()) return;
-    tut.i++; tutMark(); coachHold = { t: 'Good.', until: performance.now() + 650 };
+    chime('step'); tut.i++; tutMark(); coachHold = { t: 'Good.', until: performance.now() + 650 };
   }
   function tutLine() {
     if (coachHold && performance.now() < coachHold.until) return coachHold;
@@ -52,7 +52,7 @@
     return STEPS[tut.i];
   }
   function startTutorial() {
-    L = TUT; mode = 'game'; tut = { i: 0 };
+    stopReplay(); L = TUT; mode = 'game'; tut = { i: 0 };
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = true; $('tutbar').hidden = false;
     $('v-goal').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false; $('b-levels').textContent = '‹ Exit';
@@ -60,7 +60,7 @@
     buildLevel(); reset(); fit();
   }
   function finishTutorial() {
-    finished = true; s.v = 0; onboarded = true; save('cdl.onboarded', '1');
+    finished = true; releaseControls(); chime('win'); s.v = 0; onboarded = true; save('cdl.onboarded', '1');
     $('sheet').innerHTML =
       '<div class="sheet-head"><div><h2>Controls: done</h2><small>First Moves</small></div><div class="stamp pass">READY</div></div>' +
       '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 starts simple: drive down a lane and stop in the box, with the coach calling every move.</p>' +
@@ -81,6 +81,9 @@
   var ptrDrive = 0, keys = {}, keyAmt = 0.35, looking = false, looks = 0, goalYaw = 0.9;
 
   function reset() {
+    stopReplay(); releaseControls(); paused = false; $('pause-panel').hidden = true;
+    history = []; recordingTime = 0; sampleAt = 0; wasBoxed = false;
+    if (tut && L.kind === 'tutorial') tut.i = 0;
     s = { x: L.start.x, y: L.start.y, t1: L.start.t1, t2: L.start.t2, v: 0 };
     cones = L.cones.map(function (k) { return { x: k.x, y: k.y, hit: false }; });
     pullups = 0; enc = 0; elapsed = 0;
@@ -90,14 +93,18 @@
     camYaw = 0.3; looks = 0; endLook();
     if (L.kind === 'tutorial' && tut) tutMark();
     $('sheet').hidden = true;
-    setSteer(0);
+    setSteer(0); history.push(snapshot());
   }
   function showMenu() {
-    mode = 'menu'; ptrDrive = 0;
+    stopReplay(); releaseControls(); paused = false; $('pause-panel').hidden = true; mode = 'menu';
     $('menu').hidden = false; $('welcome').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
     $('eyebrow').hidden = false; $('b-levels').hidden = true;
     $('title').textContent = 'Backing Course';
     if (!onboarded) { onboarded = true; save('cdl.onboarded', '1'); }
+    var completed = LEVELS.filter(function (lv) { return !!prog[lv.id]; }).length;
+    $('progress-count').textContent = completed + ' of ' + LEVELS.length + ' completed';
+    $('progress-stars').textContent = LEVELS.reduce(function (n, lv) { return n + (prog[lv.id] ? prog[lv.id].stars : 0); }, 0) + ' / 18 stars';
+    $('course-meter').value = completed;
     var next = -1, html = '';
     LEVELS.forEach(function (lv, i) { if (next < 0 && !prog[lv.id]) next = i; });
     LEVELS.forEach(function (lv, i) {
@@ -115,7 +122,7 @@
     box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '8px';
   }
   function startLevel(i) {
-    li = i; L = LEVELS[i]; mode = 'game';
+    stopReplay(); tut = null; li = i; L = LEVELS[i]; mode = 'game';
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = false; $('tutbar').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false;
     $('b-levels').textContent = '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
@@ -134,7 +141,7 @@
     keyAmt = kd ? Math.min(1, keyAmt + dt / 0.9) : 0.35;      // holding a key eases the throttle in
     var drive = (finished || looking) ? 0 : (ptrDrive || kd * keyAmt);
     var ks = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
-    if (ks && !finished) setSteer(steer + ks * 1.6 * dt);
+    if (ks && !finished && !looking) setSteer(steer + ks * 1.6 * dt);
 
     var top = drive > 0 ? FWD_SPEED : SPEED;
     s.v += (drive * top - s.v) * Math.min(1, dt * 6);
@@ -213,6 +220,7 @@
   }
   function coachLine() {
     if (L.kind === 'tutorial') return tutLine();
+    if (replay) return { t: 'Replay: scrub through your attempt. Change cameras to inspect your positioning.' };
     if (looking) return { t: 'You are out of the cab and the clock is stopped. Drag to walk around. ' + (looks <= L.looksFree ? 'Look ' + looks + ' of ' + L.looksFree + ' free.' : 'This extra look costs 1 point.') };
     if (coachHold && performance.now() < coachHold.until) return coachHold;
     if (finished) return { t: 'Brake set. Your sheet is up.' };
@@ -256,7 +264,7 @@
 
   // ---- finish ----
   function setBrake() {
-    if (finished || mode !== 'game') return;
+    if (finished || paused || mode !== 'game') return;
     if (L.kind === 'tutorial') {
       if (tut.i === STEPS.length - 1) finishTutorial();
       else coachHold = { t: 'Not yet. Finish this step first: ' + STEPS[tut.i].t, w: 1, cue: STEPS[tut.i].cue, until: performance.now() + 2600 };
@@ -269,15 +277,17 @@
       coachHold = { t: (L.notIn || (L.kind === 'dock' ? 'The trailer is not fully in the alley.' : 'The trailer is not back in the lane yet.')) + ' Tap Set brake again to end this attempt.', w: 1, cue: 'brake', until: endAt };
       return;
     }
-    finished = true; s.v = 0;
+    if (moving && L.count === 'stops') pullups++;
+    moving = false; finished = true; s.v = 0; releaseControls(); history.push(snapshot());
     var extra = Math.max(0, pullups - L.free);
     var boxed = inBox();
     var extraLooks = L.looksFree == null ? 0 : Math.max(0, looks - L.looksFree);
     var pts = extra + extraLooks + enc * 2 + (boxed ? 0 : 4) + (trackMiss ? 2 : 0);
     var deg = Math.abs(norm(L.kind === 'dock' ? s.t2 : s.t2 + PI / 2)) * 180 / PI;
-    var pass = !dnf && pts <= PASS_AT;
+    var pass = !dnf && boxed && started && pts <= PASS_AT;
     var stars = !pass ? 0 : coachedRun ? 1 : pts <= 1 ? 3 : 2;
     var old = prog[L.id], note;
+    chime(pass ? 'win' : 'retry');
     if (pass) {
       var rec = old || { stars: 0 };
       if (stars > rec.stars) rec.stars = stars;
@@ -285,14 +295,15 @@
       prog[L.id] = rec; save('cdl.progress', JSON.stringify(prog));
     }
     var hasNext = li + 1 < LEVELS.length;
-    if (dnf) note = 'Attempt ended before the trailer was in. Reset and go again, or turn Coach on for help.';
+    if (dnf) note = 'Attempt ended outside the target area. Reset and go again, or turn Coach on for help.';
+    else if (!boxed || !started) note = 'Finish in the yellow target area to pass. Ease off the pedal early, then set the brake.';
     else if (!pass) note = 'Pass at ' + PASS_AT + ' points or under. Fewer points is better.';
     else if (coachedRun) note = (old ? '' : hasNext ? LEVELS[li + 1].name + ' is unlocked. ' : '') + 'Turn Coach off and run it solo for more stars.';
     else if (stars < 3) note = 'Solo pass. Get it to 1 point or less for the third star.';
     else note = 'Clean solo run.';
 
     $('sheet').innerHTML =
-      '<div class="sheet-head"><div><h2>Score sheet</h2><small>' + L.name + (coachedRun ? ' · coached' : ' · solo') + '</small></div>' +
+      '<div class="sheet-head"><div><h2>Practice results</h2><small>' + L.name + (coachedRun ? ' · coached' : ' · solo') + '</small></div>' +
       '<div class="stamp ' + (pass ? 'pass' : 'retry') + '">' + (pass ? 'PASS' : 'RETRY') + '</div></div>' +
       '<table>' +
       tr(COUNT[L.count || 'pullups'], pullups + ' (' + L.free + ' free)', extra) +
@@ -305,10 +316,15 @@
       '<tr class="total"><td>Points</td><td></td><td>' + pts + '</td></tr></table>' +
       '<p class="earned" aria-label="' + stars + ' of 3 stars">' + starStr(stars) + '</p>' +
       '<p class="note">' + note + '</p>' +
+      '<p class="note">' + (enc ? 'Next attempt: slow down before the boundary and use small steering corrections.' : !boxed ? 'Next attempt: feather the pedal as you reach the yellow stop area.' : trackMiss ? 'Next attempt: keep the trailer wheels outside the tracking line until they pass the cone.' : extra ? 'Next attempt: straighten earlier to reduce corrections.' : 'Keep this control: steady steering and a deliberate stop.') + '</p>' +
+      '<p class="practice-note">Game scoring: pass at 6 points or fewer. Not an official CDL test score.</p>' +
+      (history.length > 2 ? '<button type="button" id="watch-replay" class="replay-button">Watch replay</button>' : '') +
       '<div class="btns"><button type="button" id="again"' + (pass && hasNext ? '' : ' class="go"') + '>Again</button>' +
       (pass && hasNext ? '<button type="button" id="next" class="go">Next level</button>' : '<button type="button" id="tomenu">Levels</button>') + '</div>';
     $('sheet').hidden = false;
+    if ($('watch-replay')) $('watch-replay').addEventListener('click', startReplay);
     $('again').addEventListener('click', reset);
+    $('again').focus();
     if ($('next')) $('next').addEventListener('click', function () { startLevel(li + 1); });
     if ($('tomenu')) $('tomenu').addEventListener('click', showMenu);
   }
@@ -774,12 +790,12 @@
   (function () {
     var drag = null;
     el.steer.addEventListener('pointerdown', function (e) {
-      if (finished) return;
+      if (finished || paused || looking) return;
       e.preventDefault(); el.steer.setPointerCapture(e.pointerId);
       drag = { id: e.pointerId, x: e.clientX, v: steer, w: el.steer.getBoundingClientRect().width };
     });
     el.steer.addEventListener('pointermove', function (e) {
-      if (!drag || e.pointerId !== drag.id) return;
+      if (!drag || e.pointerId !== drag.id || paused || finished || looking) return;
       setSteer(drag.v + (e.clientX - drag.x) / (drag.w * 0.36));
     });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) {
@@ -787,19 +803,28 @@
     });
   })();
   // Pedals are analog: the higher you press, the more throttle. The lower third feathers it.
+  var pedalRelease = [];
   function hold(node, dir) {
-    var fill = node.querySelector('.amt');
+    var fill = node.querySelector('.amt'), pointer = null;
+    function clear() {
+      pointer = null;
+      if (ptrDrive * dir > 0) ptrDrive = 0;
+      if (fill) fill.style.height = '0'; node.classList.remove('down');
+    }
+    pedalRelease.push(clear);
     function set(e) {
       var r = node.getBoundingClientRect(), f = 1 - (e.clientY - r.top) / r.height;
       var amt = Math.max(0.35, Math.min(1, 0.35 + f * 1.1));
       ptrDrive = dir * amt; if (fill) fill.style.height = Math.round(amt * 100) + '%';
     }
     node.addEventListener('pointerdown', function (e) {
-      e.preventDefault(); node.setPointerCapture(e.pointerId); set(e); node.classList.add('down');
+      if (finished || paused || looking || mode !== 'game' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      e.preventDefault(); pedalRelease.forEach(function (fn) { fn(); });
+      pointer = e.pointerId; node.setPointerCapture(e.pointerId); set(e); node.classList.add('down');
     });
-    node.addEventListener('pointermove', function (e) { if (ptrDrive * dir > 0) set(e); });
+    node.addEventListener('pointermove', function (e) { if (e.pointerId === pointer) set(e); });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) {
-      node.addEventListener(n, function () { if (ptrDrive * dir > 0) ptrDrive = 0; if (fill) fill.style.height = '0'; node.classList.remove('down'); });
+      node.addEventListener(n, function (e) { if (e.pointerId === pointer) clear(); });
     });
     node.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
@@ -830,6 +855,9 @@
   });
   window.addEventListener('keydown', function (e) {
     if (mode !== 'game') return;
+    if (e.key === 'Escape') { e.preventDefault(); if (replay) stopReplay(); else if (paused) resumeGame(); else pauseGame(); return; }
+    if (paused || replay) return;
+    if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || (e.target.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter'))) return;
     if (e.key.indexOf('Arrow') === 0) { keys[e.key] = true; e.preventDefault(); }
     else if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setBrake(); }
     else if (e.key === 'c' || e.key === 'C') { if (!finished) setSteer(0); }
@@ -838,23 +866,39 @@
     else if (e.key === 'v' || e.key === 'V') { setView(viewMode === 'top' ? 'cab' : viewMode === 'cab' ? 'seat' : 'top'); }
   });
   window.addEventListener('keyup', function (e) { keys[e.key] = false; });
-  window.addEventListener('blur', function () { keys = {}; ptrDrive = 0; });
+  window.addEventListener('blur', pauseGame);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) pauseGame(); });
+  document.addEventListener('pointerdown', initSound);
+  document.addEventListener('keydown', initSound);
+  $('b-sound').addEventListener('click', function () { soundOn = !soundOn; save('cdl.sound', soundOn ? 'on' : 'off'); initSound(); updateSoundButton(); });
+  $('b-pause').addEventListener('click', pauseGame);
+  $('b-resume').addEventListener('click', resumeGame);
+  $('pause-levels').addEventListener('click', showMenu);
+  $('replay-done').addEventListener('click', stopReplay);
+  $('replay-speed').addEventListener('click', function () { if (!replay) return; replay.speed = replay.speed === 1 ? 2 : replay.speed === 2 ? 0 : 1; this.textContent = replay.speed ? replay.speed + '×' : 'Play'; });
+  $('replay-seek').addEventListener('input', function () { if (!replay) return; replay.index = Number(this.value); replay.time = history[replay.index].t; applySnapshot(history[replay.index]); });
 
   // ---- loop ----
   function start() {
-    reset(); setView(viewMode); setCoach(guideOn);
+    reset(); setView(viewMode); setCoach(guideOn); updateSoundButton();
     if (onboarded) showMenu(); else showWelcome();
     if (window.ResizeObserver) new ResizeObserver(fit).observe(yard); else window.addEventListener('resize', fit);
     var last = performance.now();
     (function frame(now) {
       var dt = Math.min(0.05, (now - last) / 1000); last = now;
       if (mode === 'game') {
-        step(dt);
-        if (L.kind === 'tutorial') tutTick();
-        if (started && !finished && !looking) elapsed += dt;
+        if (replay) replayTick(document.hidden ? 0 : dt);
+        else if (!paused && !finished && !document.hidden) {
+          var previousEnc = enc; step(dt);
+          if (enc > previousEnc) chime('warn');
+          if (L.kind === 'tutorial') tutTick();
+          if (started && !finished && !looking) { elapsed += dt; recordTick(dt); }
+          var boxedNow = L.kind !== 'tutorial' && inBox();
+          if (boxedNow && !wasBoxed) chime('step'); wasBoxed = boxedNow;
+        }
         draw(); hud();
       }
-      requestAnimationFrame(frame);
+      soundTick(dt); requestAnimationFrame(frame);
     })(last);
   }
   if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start); else start();

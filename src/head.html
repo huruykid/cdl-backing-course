@@ -195,6 +195,46 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
   .steer-hint { display: none; } .steer-info { flex: none; width: 100%; }
   .pedal { width: 58px; }
 }
+
+/* Completion pass: deliberate feedback, replay, and comfortable narrow layouts. */
+* { box-sizing: border-box; }
+.app { height: 100dvh; padding-top: max(10px, env(safe-area-inset-top)); padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.session-bar { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:3px 0 8px; border-bottom:1px solid var(--steel); font:600 11px var(--display); letter-spacing:.1em; color:var(--muted); }
+.session-bar > div { display:flex; gap:6px; }
+.session-dot { color:var(--paint); padding:0 6px; }
+.session-bar button { min-height:36px; padding:0 10px; color:var(--soft); background:var(--pad); border:1px solid var(--steel-hi); border-radius:4px; font:600 13px var(--display); text-transform:uppercase; cursor:pointer; }
+.session-bar button[aria-pressed="true"] { color:var(--paint); }
+.welcome { padding-top:22px; }
+.welcome .lede { font-size:clamp(36px,7vw,54px); max-width:17ch; margin-bottom:10px; }
+.welcome-route { display:flex; flex-direction:column; gap:16px; border-left:2px solid var(--paint); padding:4px 0 4px 18px; margin:20px 0 8px; color:var(--paint); font:600 17px var(--display); letter-spacing:.04em; }
+.welcome-route b { color:var(--soft); font-weight:500; padding-left:12px; }
+.course-progress { background:var(--off); border:1px solid var(--steel); border-radius:6px; padding:12px; margin:4px 0 8px; }
+.course-progress > div { display:flex; justify-content:space-between; gap:8px; font-size:13px; }
+.course-progress span { color:var(--paint); }
+progress { display:block; width:100%; height:6px; border:0; margin-top:10px; border-radius:3px; overflow:hidden; accent-color:var(--paint); background:var(--steel); }
+progress::-webkit-progress-bar { background:var(--steel); }
+progress::-webkit-progress-value { background:var(--paint); }
+progress::-moz-progress-bar { background:var(--paint); }
+.sheet .practice-note { font-size:11px; line-height:1.4; border-top:1px solid rgba(25,33,29,.2); padding-top:8px; }
+.sheet .replay-button { width:100%; margin-bottom:8px; min-height:40px; font-size:14px; }
+.sheet .stamp.pass { animation:stamp-in .35s ease-out; }
+@keyframes stamp-in { from { opacity:0; transform:scale(1.4) rotate(-5deg); } to { opacity:1; transform:scale(1) rotate(-5deg); } }
+.pause-panel { position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(13,17,19,.88); padding:16px; overflow:auto; }
+.pause-panel section { width:100%; max-width:320px; margin:auto; }
+.pause-panel h2 { font:700 36px var(--display); text-transform:uppercase; margin:8px 0; }
+.pause-panel p { font-size:14px; color:var(--soft); line-height:1.5; }
+.pause-panel button { margin-top:8px; min-height:44px; }
+.replaybar { position:absolute; bottom:10px; left:10px; right:10px; padding:10px; background:rgba(19,23,25,.95); border:1px solid var(--steel-hi); border-radius:6px; }
+.replaybar > div { display:flex; gap:8px; align-items:center; font:600 12px var(--display); }
+#replay-time { flex:1; color:var(--soft); font-variant-numeric:tabular-nums; }
+.replaybar button { min-width:40px; min-height:36px; background:var(--steel); color:var(--text); border:0; border-radius:3px; cursor:pointer; }
+.replaybar input { width:100%; height:28px; margin:4px 0 0; accent-color:var(--paint); }
+.views { max-width:calc(100% - 16px); }
+.views button { min-height:44px; padding:0 10px; }
+button:disabled { opacity:.5; cursor:default; }
+@media (prefers-reduced-motion:reduce) { .sheet .stamp.pass { animation:none; } }
+@media (max-width:360px) { .app { padding-inline:10px; } .steer-info { display:none; } .views button { padding:0 8px; font-size:12px; } .stats { gap:6px; } .session-bar { letter-spacing:.03em; } }
+@media (orientation:landscape) and (max-height:520px) { .session-bar { padding:0; border:0; } .session-bar button { min-height:28px; } .pause-panel h2 { font-size:26px; } .pause-panel p { margin:6px 0; } .replaybar { bottom:6px; padding:6px; } }
 </style>
 
 <div class="app">
@@ -211,18 +251,20 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     </dl>
     <div class="tutbar" id="tutbar" hidden><span id="tutstep"></span><button type="button" id="b-skip">Skip</button></div>
   </header>
+  <div class="session-bar"><span>TRAINING YARD <span class="session-dot" aria-hidden="true">●</span> PRACTICE</span><div><button type="button" id="b-sound" aria-pressed="false">Sound off</button><button type="button" id="b-pause">Pause</button></div></div>
 
   <main class="menu welcome" id="welcome" hidden>
-    <p class="lede">Learn the backing moves before your first day in a truck.</p>
-    <p>Short drills, a coach that tells you when to turn, and the same scoring the examiner uses.</p>
-    <p class="ask">Have you backed a trailer before?</p>
+    <p class="lede">Build your confidence. One maneuver at a time.</p>
+    <p>Six driving drills, a step-by-step coach, and instant feedback. Learn the controls, practice your positioning, then try a clean solo run.</p>
+    <div class="welcome-route" aria-label="Your learning path"><span>01 <b>Learn the controls</b></span><span>02 <b>Practice with a coach</b></span><span>03 <b>Earn your solo stars</b></span></div><p class="ask">Have you backed a trailer before?</p>
     <button type="button" class="choice go" id="w-new">Never. Show me the controls</button>
     <button type="button" class="choice" id="w-skip">Yes. Take me to the drills</button>
-    <p class="legend">No account needed. Your progress saves on this device.</p>
+    <p class="legend">No account needed. Your progress saves in this browser. This is a practice game; course dimensions and scores are not official test standards.</p>
   </main>
 
   <main class="menu" id="menu">
     <p>Six drills, easiest first. Pass one to unlock the next. The coach tells you when and which way to turn.</p>
+    <div class="course-progress"><div><strong id="progress-count">0 of 6 completed</strong><span id="progress-stars">0 / 18 stars</span></div><progress id="course-meter" max="6" value="0" aria-label="Drills completed"></progress></div>
     <div id="levels"></div>
     <p class="legend">★ pass with Coach on &nbsp;·&nbsp; ★★ pass solo &nbsp;·&nbsp; ★★★ solo with 1 point or less</p>
     <button type="button" class="link" id="b-howto">How to play</button>
@@ -240,7 +282,9 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
         <button type="button" id="v-seat" aria-pressed="false">Seat</button>
         <button type="button" id="v-goal" aria-pressed="false">Get out</button>
       </div>
-      <section class="sheet" id="sheet" hidden aria-live="polite"></section>
+      <section class="sheet" id="sheet" hidden aria-label="Attempt results" aria-live="polite"></section>
+      <div id="pause-panel" class="pause-panel" hidden><section><span class="eyebrow">TAKE YOUR TIME</span><h2>Yard paused</h2><p>Your truck and timer are paused. Resume when you are ready.</p><button type="button" id="b-resume" class="choice go">Resume driving</button><button type="button" id="pause-levels" class="choice">Back to levels</button></section></div>
+      <div id="replaybar" class="replaybar" hidden><div><strong>ATTEMPT REPLAY</strong><span id="replay-time">0:00</span><button type="button" id="replay-speed">1×</button><button type="button" id="replay-done">Results</button></div><input id="replay-seek" type="range" min="0" max="1" step="1" value="0" aria-label="Replay position"></div>
     </div>
 
     <div class="tools">
@@ -262,7 +306,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
         <div class="steer-info">
           <div class="steer-label">Steering</div>
           <div class="steer-hint touch">Drag left or right.</div>
-          <div class="steer-hint keys">Arrows drive and steer. Space: brake. C: center. V: view. G: get out. R: reset.</div>
+          <div class="steer-hint keys">Arrows drive and steer. Space: brake. C: center. V: view. G: get out. R: reset. Esc: pause.</div>
           <div class="gauge"><b id="target"></b><i id="gauge"></i></div>
         </div>
       </div>
