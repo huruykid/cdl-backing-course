@@ -1,11 +1,20 @@
 # CDL Backing Course
 
-A browser game that teaches the CDL basic control skills. Four levels, easiest first:
+A browser game that teaches the CDL basic control skills. Six levels, easiest first.
 
-1. Straight Back
-2. Offset Back
-3. Wide Dock (90° into a 20-foot alley)
-4. Alley Dock (12 feet wide, 3-foot stop box)
+The current skills test:
+
+1. Forward Stop
+2. Straight Back
+3. Forward Offset
+4. Reverse Offset
+
+The older test, still used at some sites:
+
+5. Wide Dock (90° into a 20-foot alley)
+6. Alley Dock (12 feet wide, 3-foot stop box)
+
+Lane sizes and point values are the game's own practice settings. The official ones are not published.
 
 Three camera views (overhead, driver's window, driver's seat with mirrors), a turn-by-turn coach, and an examiner-style score sheet.
 

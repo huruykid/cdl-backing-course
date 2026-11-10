@@ -85,6 +85,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 30px; 
 .lvl.up .tag { color: var(--ink); background: var(--paint); padding: 5px 9px 4px; border-radius: 3px; }
 .lvl:disabled { cursor: not-allowed; background: transparent; }
 .lvl:disabled .n, .lvl:disabled strong, .lvl:disabled .sub { color: var(--steel-hi); }
+.menu .grp { margin: 8px 0 -2px; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--paint); }
 .menu .legend { margin-top: 4px; font-size: 13px; color: var(--muted); }
 
 .coach {
@@ -201,7 +202,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
       <h1 id="title">Backing Course</h1>
     </div>
     <dl class="stats" id="stats" hidden>
-      <div><dt>Pull-ups</dt><dd id="s-pull">0</dd></div>
+      <div><dt id="l-pull">Pull-ups</dt><dd id="s-pull">0</dd></div>
       <div><dt>Encroach</dt><dd id="s-enc">0</dd></div>
       <div><dt>Time</dt><dd id="s-time">0:00</dd></div>
     </dl>
@@ -218,7 +219,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
   </main>
 
   <main class="menu" id="menu">
-    <p>Four backing drills, easiest first. Pass one to unlock the next. The coach tells you when and which way to turn.</p>
+    <p>Six drills, easiest first. Pass one to unlock the next. The coach tells you when and which way to turn.</p>
     <div id="levels"></div>
     <p class="legend">★ pass with Coach on &nbsp;·&nbsp; ★★ pass solo &nbsp;·&nbsp; ★★★ solo with 1 point or less</p>
     <button type="button" class="link" id="b-howto">How to play</button>

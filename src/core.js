@@ -36,10 +36,11 @@
   function laneLevel(o) {
     var x0 = o.lane[0], x1 = o.lane[1], yb = 118;
     o.kind = 'lane';
-    o.box = [x0, yb - 6, x1, yb];
+    var bd = o.boxDepth || 6;
+    o.box = [x0, yb - bd, x1, yb];
     o.walls = [[x0 - 4, yb, x1 + 4, H]];
     o.lineX = (x0 + x1) / 2;
-    o.lines.push([x0, yb - 6, x1, yb - 6]);
+    o.lines.push([x0, yb - bd, x1, yb - bd]);
     return o;
   }
   function dockLevel(o) {
@@ -57,9 +58,26 @@
     o.labels = [{ t: 'ALLEY  ' + o.width + ' × 40 FT', x: 23, y: y0 - 3.2 }, { t: 'STOP BOX  ' + o.boxDepth + ' FT', x: 13, y: y1 + 3.2 }];
     return o;
   }
+  // Forward Offset: where the tractor's front should be aimed, so the trailer ends up in the left lane
+  function offsetPath(st) {
+    // swing the cab wide left of the zone's centre, then settle on it so the trailer straightens
+    return 54 - 7 * Math.max(0, Math.min(1, (st.y - 52) / 6));
+  }
   var LEVELS = [
+    {
+      id: 'fstop', group: 'Current skills test', name: 'Forward Stop', sub: 'Drive down the lane and stop with the front bumper in the box.',
+      brief: 'Drive forward down the lane and stop with the front bumper in the yellow box. You get one stop.',
+      kind: 'lane', dir: 'fwd', finish: 'front', count: 'stops', free: 1, lineX: 70,
+      start: { x: 70.6, y: 82, t1: -PI / 2 + 0.05, t2: -PI / 2 - 0.03 },
+      zones: [[62, 4, 78, 118]],
+      lines: [[62, 4, 62, 118], [78, 4, 78, 118], [62, 4, 78, 4], [62, 118, 78, 118], [62, 9, 78, 9]],
+      cones: row(62, 4, 62, 44, 4).concat(row(78, 4, 78, 44, 4)),
+      box: [62, 4, 78, 9], dockZone: [62, 4, 78, 118], walls: [],
+      notIn: 'The truck is outside the lane.', posOk: 'front in stop box', posBad: 'front not in box',
+      labels: [{ t: 'STOP BOX  5 FT', x: 70, y: 1.6 }]
+    },
     laneLevel({
-      id: 'straight', name: 'Straight Back', sub: 'Back down a wide lane and stop in the box.',
+      id: 'straight', group: 'Current skills test', name: 'Straight Back', sub: 'Back down a wide lane and stop in the box.',
       brief: 'Back straight down the lane and stop with the trailer rear in the yellow box.',
       free: 1, lane: [61, 79],
       start: { x: 71, y: 30, t1: -PI / 2 - 0.05, t2: -PI / 2 + 0.06 },
@@ -69,10 +87,23 @@
       dockZone: [61, 60, 79, 118.01],
       labels: [{ t: 'LANE  18 FT', x: 70, y: 124, hide: 1 }]
     }),
+    {
+      id: 'foffset', group: 'Current skills test', name: 'Forward Offset', sub: 'Drive forward and move over one lane without cutting the corner.',
+      brief: 'Drive forward and move into the left lane. Keep the trailer wheels right of the white line until they pass the cone, then stop in the yellow zone.',
+      kind: 'lane', dir: 'fwd', finish: 'park', count: 'backups', free: 0, lineX: 54, path: offsetPath, look: 20,
+      start: { x: 66, y: 86, t1: -PI / 2, t2: -PI / 2 },
+      zones: [[59, 96, 73, 120], [38, 4, 73, 96]],
+      lines: [[59, 120, 59, 96], [59, 96, 38, 96], [38, 96, 38, 4], [38, 4, 73, 4], [73, 4, 73, 120], [73, 120, 59, 120], [63, 4, 63, 80], [45, 80, 63, 80], [45, 4, 45, 80]],
+      cones: [{ x: 59, y: 96 }, { x: 73, y: 96 }, { x: 59, y: 108 }, { x: 45, y: 4 }, { x: 63, y: 4 }],
+      box: [45, 4, 63, 80], dockZone: [45, 4, 63, 80], walls: [],
+      gate: { y: 96, x0: 68 },
+      notIn: 'The whole truck has to be inside the yellow zone first.', posOk: 'in the lane', posBad: 'out of position',
+      labels: [{ t: 'STOP ZONE', x: 54, y: 83.5 }, { t: 'TRACKING LINE', x: 66, y: 123.5, hide: 1 }]
+    },
     laneLevel({
-      id: 'offset', name: 'Offset Back', sub: 'Start in the right lane, back into the left one.',
-      brief: 'Back out of the right lane and into the left lane. Stop with the trailer rear in the yellow box.',
-      free: 2, lane: [53, 71],
+      id: 'offset', group: 'Current skills test', name: 'Reverse Offset', sub: 'Back from the right lane into the left one and stop in the 3-foot box.',
+      brief: 'Back out of the right lane and into the left lane. Stop with the trailer rear in the 3-foot yellow box.',
+      free: 2, lane: [53, 71], boxDepth: 3,
       start: { x: 77, y: 20, t1: -PI / 2, t2: -PI / 2 },
       zones: [[53, 2, 98, 84], [53, 84, 71, 118]],
       lines: [[53, 2, 53, 118], [53, 2, 98, 2], [98, 2, 98, 84], [98, 84, 71, 84], [71, 84, 71, 118], [53, 118, 71, 118]],
@@ -80,16 +111,29 @@
       dockZone: [53, 60, 71, 118.01],
       labels: []
     }),
-    dockLevel({ id: 'wide', name: 'Wide Dock', sub: 'A 90° back into a 20-foot alley.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 4, width: 20, boxDepth: 6 }),
-    dockLevel({ id: 'alley', name: 'Alley Dock', sub: 'The real thing: 12 feet wide, 3-foot stop box.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 2, width: 12, boxDepth: 3 })
+    dockLevel({ id: 'wide', group: 'Older test, still used at some sites', name: 'Wide Dock', sub: 'A 90° back into a 20-foot alley.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 4, width: 20, boxDepth: 6 }),
+    dockLevel({ id: 'alley', group: 'Older test, still used at some sites', name: 'Alley Dock', sub: 'A 90° back into a 12-foot alley with a 3-foot stop box.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 2, width: 12, boxDepth: 3 })
   ];
 
   function inBounds(L, p) { return L.zones.some(function (r) { return inRect(p, r); }); }
   function hardStop(L, p) {
     return p.x < 0 || p.x > W || p.y < 0 || p.y > H || L.walls.some(function (r) { return inRect(p, r); });
   }
-  function isDocked(L, st) { return corners(st.x, st.y, st.t2, TL).every(function (p) { return inRect(p, L.dockZone); }); }
-  function isBoxed(L, st) { var r = rearPoint(st); return isDocked(L, st) && inRect(r, [L.box[0] - 0.5, L.box[1] - 0.5, L.box[2] + 0.5, L.box[3] + 0.5]); }
+  function allCorners(st) { return corners(st.x, st.y, st.t1, TR).concat(corners(st.x, st.y, st.t2, TL)); }
+  function frontPoint(st) { return { x: st.x + TR.f * Math.cos(st.t1), y: st.y + TR.f * Math.sin(st.t1) }; }
+  // Backing drills finish on the trailer; forward drills finish on the whole truck.
+  function isDocked(L, st) {
+    var pts = L.dir === 'fwd' ? allCorners(st) : corners(st.x, st.y, st.t2, TL);
+    return pts.every(function (p) { return inRect(p, L.dockZone); });
+  }
+  function isBoxed(L, st) {
+    if (!isDocked(L, st)) return false;
+    if (L.finish === 'park') return Math.abs(norm(st.t2 + PI / 2)) < 0.14 && Math.abs(norm(st.t1 + PI / 2)) < 0.14;      // parked parallel, within 8 degrees
+    var r = L.finish === 'front' ? frontPoint(st) : rearPoint(st);
+    return inRect(r, [L.box[0] - 0.5, L.box[1] - 0.5, L.box[2] + 0.5, L.box[3] + 0.5]);
+  }
+  // The outer edge of the trailer's right rear tyre, for the tracking line.
+  function rightTire(st) { var a = axle(st); return { x: a.x - 4.25 * Math.sin(st.t2), y: a.y + 4.25 * Math.cos(st.t2) }; }
 
   // ---- coach: the steering a good backer would hold right now ----
   function needPullUp(L, st) {
@@ -98,6 +142,11 @@
     return norm(st.t2) < -1.48 && Math.abs(norm(st.t1 - st.t2)) < 0.1 && a.y > L.turnY + 6 && a.x > 60;
   }
   function recSteer(L, st) {
+    if (L.dir === 'fwd') {      // aim the tractor's front axle at the line
+      var fx = st.x + L1 * Math.cos(st.t1), tx = L.path ? L.path(st) : L.lineX;
+      var wantF = -PI / 2 - Math.atan2(fx - tx, L.look || 22);
+      return Math.max(-1, Math.min(1, 2.2 * norm(wantF - st.t1) / MAXD));
+    }
     if (needPullUp(L, st)) return 0;
     var a = axle(st), want;
     if (L.kind === 'dock') {

@@ -14,7 +14,9 @@
     var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
   } catch (e) { prog = {}; }
   function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-  function unlocked(i) { return i === 0 || !!prog[LEVELS[i - 1].id]; }
+  // open if the level before it is passed; levels passed before the list grew stay open
+  function unlocked(i) { return i === 0 || LEVELS.slice(i - 1).some(function (lv) { return !!prog[lv.id]; }); }
+  var COUNT = { pullups: 'Pull-ups', stops: 'Stops', backups: 'Back-ups' };
   function starStr(n) { return '★★★'.slice(0, n) + '<i>' + '★★★'.slice(n) + '</i>'; }
 
   // ---- run state ----
@@ -60,7 +62,7 @@
     finished = true; s.v = 0; onboarded = true; save('cdl.onboarded', '1');
     $('sheet').innerHTML =
       '<div class="sheet-head"><div><h2>Controls: done</h2><small>First Moves</small></div><div class="stamp pass">READY</div></div>' +
-      '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 puts those together in a straight lane, with the coach calling every turn.</p>' +
+      '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 starts simple: drive down a lane and stop in the box, with the coach calling every move.</p>' +
       '<div class="btns"><button type="button" id="tomenu">Levels</button><button type="button" id="next" class="go">Start Level 1</button></div>';
     $('sheet').hidden = false;
     $('next').addEventListener('click', function () { startLevel(0); });
@@ -73,7 +75,8 @@
     $('eyebrow').hidden = false; $('b-levels').hidden = true; $('title').textContent = 'Backing Course';
   }
   var s, cones, steer = 0, pullups, enc, elapsed, started, finished, hasReversed, lastDir,
-      dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0;
+      dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0,
+      moving = false, backArmed = false, revFt = 0, gateDone = false, trackMiss = false;
   var ptrDrive = 0, keys = {};
 
   function reset() {
@@ -81,6 +84,7 @@
     cones = L.cones.map(function (k) { return { x: k.x, y: k.y, hit: false }; });
     pullups = 0; enc = 0; elapsed = 0;
     started = false; finished = false; hasReversed = false; lastDir = 0; pullArmed = false; fwdFt = 0; endAt = 0;
+    moving = false; backArmed = false; revFt = 0; gateDone = false; trackMiss = false;
     dirty = false; bumped = false; jack = false; coachHold = null; coachedRun = guideOn;
     camYaw = 0.3;
     if (L.kind === 'tutorial' && tut) tutMark();
@@ -97,6 +101,7 @@
     LEVELS.forEach(function (lv, i) { if (next < 0 && !prog[lv.id]) next = i; });
     LEVELS.forEach(function (lv, i) {
       var open = unlocked(i), p = prog[lv.id];
+      if (!i || lv.group !== LEVELS[i - 1].group) html += '<p class="grp">' + lv.group + '</p>';
       var right = !open ? '<span class="tag">Locked</span>'
         : p ? '<span class="stars" aria-label="' + p.stars + ' of 3 stars">' + starStr(p.stars) + '</span>'
         : '<span class="tag">' + (i === next ? 'Start' : 'Open') + '</span>';
@@ -114,6 +119,7 @@
     $('eyebrow').hidden = true; $('b-levels').hidden = false;
     $('b-levels').textContent = '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
     $('title').textContent = L.name;
+    $('l-pull').textContent = COUNT[L.count || 'pullups'];
     buildLevel(); reset(); fit();
   }
 
@@ -129,7 +135,10 @@
 
     var top = drive > 0 ? FWD_SPEED : SPEED;
     s.v += (drive * top - s.v) * Math.min(1, dt * 6);
-    if (Math.abs(s.v) < 0.02) { s.v = 0; return; }
+    if (Math.abs(s.v) < 0.02) {
+      if (moving) { moving = false; if (L.count === 'stops') pullups++; }
+      s.v = 0; return;
+    }
 
     var prev = { x: s.x, y: s.y, t1: s.t1, t2: s.t2 };
     var phi0 = Math.abs(norm(s.t1 - s.t2));
@@ -147,9 +156,21 @@
     bumped = false;
 
     if (!started) started = true;
-    // a pull-up is one stop after backing, followed by at least a foot of forward travel
-    if (s.v < -0.4) { hasReversed = true; pullArmed = true; fwdFt = 0; }
-    else if (s.v > 0 && pullArmed) { fwdFt += s.v * dt; if (fwdFt >= 1) { pullups++; pullArmed = false; } }
+    if (Math.abs(s.v) > 0.4) moving = true;
+    if (L.count === 'backups') {
+      // a back-up is at least a foot of reverse travel on a forward drill
+      if (s.v > 0.4) { backArmed = true; revFt = 0; }
+      else if (s.v < 0 && backArmed) { revFt -= s.v * dt; if (revFt >= 1) { pullups++; backArmed = false; } }
+    } else if (L.count !== 'stops') {
+      // a pull-up is one stop after backing, followed by at least a foot of forward travel
+      if (s.v < -0.4) { hasReversed = true; pullArmed = true; fwdFt = 0; }
+      else if (s.v > 0 && pullArmed) { fwdFt += s.v * dt; if (fwdFt >= 1) { pullups++; pullArmed = false; } }
+    }
+    // tracking line: checked once, as the trailer wheels pass the cone
+    if (L.gate && !gateDone && axle(prev).y > L.gate.y && axle(s).y <= L.gate.y) {
+      gateDone = true; trackMiss = rightTire(s).x < L.gate.x0;
+      if (trackMiss) coachHold = { t: 'The trailer wheels cut inside the white line. That costs tracking points.', w: 1, until: performance.now() + 3200 };
+    }
     var touching = false;
     cones.forEach(function (k) {
       if (coneIn(k, s.x, s.y, s.t1, TR) || coneIn(k, s.x, s.y, s.t2, TL)) { k.hit = true; touching = true; }
@@ -161,14 +182,26 @@
   function restore(p) { s.x = p.x; s.y = p.y; s.t1 = p.t1; s.t2 = p.t2; s.v = 0; }
 
   // ---- coach ----
+  function fwdLine() {
+    if (!guideOn) return { t: !started ? L.brief : L.finish === 'front' ? 'Stop with the front bumper in the yellow box.' : 'The trailer cuts corners. Watch its wheels, not the cab.' };
+    var r = recSteer(L, s), diff = r - steer, near = Math.abs(diff) < 0.15;
+    var turn = near ? 'Hold the wheel there.' : (diff > 0 ? 'Turn right, to the white mark.' : 'Turn left, to the white mark.');
+    if (!started && near) return { t: 'Hold FWD to pull forward. Keep the yellow tick on the white mark.', cue: 'fwd' };
+    var why;
+    if (L.finish === 'front') why = frontPoint(s).y - L.box[3] < 12 ? 'Get ready: let go of FWD as the bumper reaches the yellow box.' : 'Keep it straight down the lane.';
+    else why = !gateDone ? 'The cab goes left first. Trailer wheels stay right of the white line until the cone.'
+      : 'Swing wide, then come back to the middle so the trailer straightens.';
+    return { t: turn + ' ' + why, cue: 'fwd' };
+  }
   function coachLine() {
     if (L.kind === 'tutorial') return tutLine();
     if (coachHold && performance.now() < coachHold.until) return coachHold;
     if (finished) return { t: 'Brake set. Your sheet is up.' };
     if (jack) return { t: 'Jackknifed. Pull forward to straighten out.', w: 1, cue: 'fwd' };
     if (bumped) return { t: 'You hit the stop. Ease forward a foot.', w: 1, cue: 'fwd' };
-    if (dirty) return { t: 'Over the line. That is an encroachment. Pull up and fix it.', w: 1 };
-    if (inBox()) return { t: 'Stop. Rear is in the box. Set the brake to finish.', cue: 'brake' };
+    if (dirty) return { t: 'Over the line. That is an encroachment. ' + (L.dir === 'fwd' ? 'Back up and get inside the lines.' : 'Pull up and fix it.'), w: 1 };
+    if (inBox()) return { t: (L.finish === 'front' ? 'Stop. The bumper is in the box.' : L.finish === 'park' ? 'Stop. The whole truck is in the zone.' : 'Stop. Rear is in the box.') + ' Set the brake to finish.', cue: 'brake' };
+    if (L.dir === 'fwd') return fwdLine();
     var phi = Math.abs(norm(s.t1 - s.t2)) * 180 / PI;
     if (!guideOn) {
       if (!hasReversed) return { t: L.brief };
@@ -213,13 +246,13 @@
     var dnf = !docked();
     if (dnf && !(endAt && performance.now() < endAt)) {
       endAt = performance.now() + 4000;
-      coachHold = { t: (L.kind === 'dock' ? 'The trailer is not fully in the alley.' : 'The trailer is not back in the lane yet.') + ' Tap Set brake again to end this attempt.', w: 1, cue: 'brake', until: endAt };
+      coachHold = { t: (L.notIn || (L.kind === 'dock' ? 'The trailer is not fully in the alley.' : 'The trailer is not back in the lane yet.')) + ' Tap Set brake again to end this attempt.', w: 1, cue: 'brake', until: endAt };
       return;
     }
     finished = true; s.v = 0;
     var extra = Math.max(0, pullups - L.free);
     var boxed = inBox();
-    var pts = extra + enc * 2 + (boxed ? 0 : 4);
+    var pts = extra + enc * 2 + (boxed ? 0 : 4) + (trackMiss ? 2 : 0);
     var deg = Math.abs(norm(L.kind === 'dock' ? s.t2 : s.t2 + PI / 2)) * 180 / PI;
     var pass = !dnf && pts <= PASS_AT;
     var stars = !pass ? 0 : coachedRun ? 1 : pts <= 1 ? 3 : 2;
@@ -241,9 +274,10 @@
       '<div class="sheet-head"><div><h2>Score sheet</h2><small>' + L.name + (coachedRun ? ' · coached' : ' · solo') + '</small></div>' +
       '<div class="stamp ' + (pass ? 'pass' : 'retry') + '">' + (pass ? 'PASS' : 'RETRY') + '</div></div>' +
       '<table>' +
-      tr('Pull-ups', pullups + ' (' + L.free + ' free)', extra) +
+      tr(COUNT[L.count || 'pullups'], pullups + ' (' + L.free + ' free)', extra) +
+      (L.gate ? tr('Tracking line', trackMiss ? 'trailer cut inside' : 'held', trackMiss ? 2 : 0) : '') +
       tr('Encroachments', enc + ' × 2', enc * 2) +
-      tr('Final position', dnf ? 'did not finish' : boxed ? 'in stop box' : 'short of box', boxed ? 0 : 4) +
+      tr('Final position', dnf ? 'did not finish' : boxed ? (L.posOk || 'in stop box') : (L.posBad || 'short of box'), boxed ? 0 : 4) +
       tr('Trailer angle', deg.toFixed(1) + '° off straight', '') +
       tr('Time', clock(elapsed), '') +
       '<tr class="total"><td>Points</td><td></td><td>' + pts + '</td></tr></table>' +
@@ -502,6 +536,7 @@
     flat(levelG, L.box, 0.05, M.box).receiveShadow = false;
     L.lines.forEach(function (l) { stripe(levelG, l[0], l[1], l[2], l[3], 0.45, 0.06, M.paint); });
     L.walls.forEach(function (r) { bx(levelG, r[2] - r[0], 4.5, r[3] - r[1], (r[0] + r[2]) / 2, 2.25, (r[1] + r[3]) / 2, M.wall); });
+    if (L.gate) stripe(levelG, L.gate.x0, L.gate.y - 14, L.gate.x0, L.gate.y + 22, 0.5, 0.06, M.white);      // tracking line
     (L.marks || []).forEach(function (mk) {
       var l = mk.line, len = Math.hypot(l[2] - l[0], l[3] - l[1]), n = Math.floor(len / 3.4);
       for (var i = 0; i < n; i++) {
@@ -566,8 +601,8 @@
       g.rotation.x = k.hit ? PI / 2 : 0; g.position.y = k.hit ? 0.7 : 0;
     });
     var show = coaching();
-    marksG.visible = show; pathG.visible = show; axleMark.visible = show;
-    if (show) {
+    marksG.visible = show; pathG.visible = show && L.dir !== 'fwd'; axleMark.visible = show;
+    if (pathG.visible) {
       var tp = tailPath();
       dots.forEach(function (m, i) {
         var a = tp[i * 2], b = tp[i * 2 + 1];

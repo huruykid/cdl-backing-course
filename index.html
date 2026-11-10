@@ -92,6 +92,7 @@ h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 30px; 
 .lvl.up .tag { color: var(--ink); background: var(--paint); padding: 5px 9px 4px; border-radius: 3px; }
 .lvl:disabled { cursor: not-allowed; background: transparent; }
 .lvl:disabled .n, .lvl:disabled strong, .lvl:disabled .sub { color: var(--steel-hi); }
+.menu .grp { margin: 8px 0 -2px; font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--paint); }
 .menu .legend { margin-top: 4px; font-size: 13px; color: var(--muted); }
 
 .coach {
@@ -210,7 +211,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
       <h1 id="title">Backing Course</h1>
     </div>
     <dl class="stats" id="stats" hidden>
-      <div><dt>Pull-ups</dt><dd id="s-pull">0</dd></div>
+      <div><dt id="l-pull">Pull-ups</dt><dd id="s-pull">0</dd></div>
       <div><dt>Encroach</dt><dd id="s-enc">0</dd></div>
       <div><dt>Time</dt><dd id="s-time">0:00</dd></div>
     </dl>
@@ -227,7 +228,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
   </main>
 
   <main class="menu" id="menu">
-    <p>Four backing drills, easiest first. Pass one to unlock the next. The coach tells you when and which way to turn.</p>
+    <p>Six drills, easiest first. Pass one to unlock the next. The coach tells you when and which way to turn.</p>
     <div id="levels"></div>
     <p class="legend">★ pass with Coach on &nbsp;·&nbsp; ★★ pass solo &nbsp;·&nbsp; ★★★ solo with 1 point or less</p>
     <button type="button" class="link" id="b-howto">How to play</button>
@@ -316,10 +317,11 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
   function laneLevel(o) {
     var x0 = o.lane[0], x1 = o.lane[1], yb = 118;
     o.kind = 'lane';
-    o.box = [x0, yb - 6, x1, yb];
+    var bd = o.boxDepth || 6;
+    o.box = [x0, yb - bd, x1, yb];
     o.walls = [[x0 - 4, yb, x1 + 4, H]];
     o.lineX = (x0 + x1) / 2;
-    o.lines.push([x0, yb - 6, x1, yb - 6]);
+    o.lines.push([x0, yb - bd, x1, yb - bd]);
     return o;
   }
   function dockLevel(o) {
@@ -337,9 +339,26 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     o.labels = [{ t: 'ALLEY  ' + o.width + ' × 40 FT', x: 23, y: y0 - 3.2 }, { t: 'STOP BOX  ' + o.boxDepth + ' FT', x: 13, y: y1 + 3.2 }];
     return o;
   }
+  // Forward Offset: where the tractor's front should be aimed, so the trailer ends up in the left lane
+  function offsetPath(st) {
+    // swing the cab wide left of the zone's centre, then settle on it so the trailer straightens
+    return 54 - 7 * Math.max(0, Math.min(1, (st.y - 52) / 6));
+  }
   var LEVELS = [
+    {
+      id: 'fstop', group: 'Current skills test', name: 'Forward Stop', sub: 'Drive down the lane and stop with the front bumper in the box.',
+      brief: 'Drive forward down the lane and stop with the front bumper in the yellow box. You get one stop.',
+      kind: 'lane', dir: 'fwd', finish: 'front', count: 'stops', free: 1, lineX: 70,
+      start: { x: 70.6, y: 82, t1: -PI / 2 + 0.05, t2: -PI / 2 - 0.03 },
+      zones: [[62, 4, 78, 118]],
+      lines: [[62, 4, 62, 118], [78, 4, 78, 118], [62, 4, 78, 4], [62, 118, 78, 118], [62, 9, 78, 9]],
+      cones: row(62, 4, 62, 44, 4).concat(row(78, 4, 78, 44, 4)),
+      box: [62, 4, 78, 9], dockZone: [62, 4, 78, 118], walls: [],
+      notIn: 'The truck is outside the lane.', posOk: 'front in stop box', posBad: 'front not in box',
+      labels: [{ t: 'STOP BOX  5 FT', x: 70, y: 1.6 }]
+    },
     laneLevel({
-      id: 'straight', name: 'Straight Back', sub: 'Back down a wide lane and stop in the box.',
+      id: 'straight', group: 'Current skills test', name: 'Straight Back', sub: 'Back down a wide lane and stop in the box.',
       brief: 'Back straight down the lane and stop with the trailer rear in the yellow box.',
       free: 1, lane: [61, 79],
       start: { x: 71, y: 30, t1: -PI / 2 - 0.05, t2: -PI / 2 + 0.06 },
@@ -349,10 +368,23 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
       dockZone: [61, 60, 79, 118.01],
       labels: [{ t: 'LANE  18 FT', x: 70, y: 124, hide: 1 }]
     }),
+    {
+      id: 'foffset', group: 'Current skills test', name: 'Forward Offset', sub: 'Drive forward and move over one lane without cutting the corner.',
+      brief: 'Drive forward and move into the left lane. Keep the trailer wheels right of the white line until they pass the cone, then stop in the yellow zone.',
+      kind: 'lane', dir: 'fwd', finish: 'park', count: 'backups', free: 0, lineX: 54, path: offsetPath, look: 20,
+      start: { x: 66, y: 86, t1: -PI / 2, t2: -PI / 2 },
+      zones: [[59, 96, 73, 120], [38, 4, 73, 96]],
+      lines: [[59, 120, 59, 96], [59, 96, 38, 96], [38, 96, 38, 4], [38, 4, 73, 4], [73, 4, 73, 120], [73, 120, 59, 120], [63, 4, 63, 80], [45, 80, 63, 80], [45, 4, 45, 80]],
+      cones: [{ x: 59, y: 96 }, { x: 73, y: 96 }, { x: 59, y: 108 }, { x: 45, y: 4 }, { x: 63, y: 4 }],
+      box: [45, 4, 63, 80], dockZone: [45, 4, 63, 80], walls: [],
+      gate: { y: 96, x0: 68 },
+      notIn: 'The whole truck has to be inside the yellow zone first.', posOk: 'in the lane', posBad: 'out of position',
+      labels: [{ t: 'STOP ZONE', x: 54, y: 83.5 }, { t: 'TRACKING LINE', x: 66, y: 123.5, hide: 1 }]
+    },
     laneLevel({
-      id: 'offset', name: 'Offset Back', sub: 'Start in the right lane, back into the left one.',
-      brief: 'Back out of the right lane and into the left lane. Stop with the trailer rear in the yellow box.',
-      free: 2, lane: [53, 71],
+      id: 'offset', group: 'Current skills test', name: 'Reverse Offset', sub: 'Back from the right lane into the left one and stop in the 3-foot box.',
+      brief: 'Back out of the right lane and into the left lane. Stop with the trailer rear in the 3-foot yellow box.',
+      free: 2, lane: [53, 71], boxDepth: 3,
       start: { x: 77, y: 20, t1: -PI / 2, t2: -PI / 2 },
       zones: [[53, 2, 98, 84], [53, 84, 71, 118]],
       lines: [[53, 2, 53, 118], [53, 2, 98, 2], [98, 2, 98, 84], [98, 84, 71, 84], [71, 84, 71, 118], [53, 118, 71, 118]],
@@ -360,16 +392,29 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
       dockZone: [53, 60, 71, 118.01],
       labels: []
     }),
-    dockLevel({ id: 'wide', name: 'Wide Dock', sub: 'A 90° back into a 20-foot alley.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 4, width: 20, boxDepth: 6 }),
-    dockLevel({ id: 'alley', name: 'Alley Dock', sub: 'The real thing: 12 feet wide, 3-foot stop box.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 2, width: 12, boxDepth: 3 })
+    dockLevel({ id: 'wide', group: 'Older test, still used at some sites', name: 'Wide Dock', sub: 'A 90° back into a 20-foot alley.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 4, width: 20, boxDepth: 6 }),
+    dockLevel({ id: 'alley', group: 'Older test, still used at some sites', name: 'Alley Dock', sub: 'A 90° back into a 12-foot alley with a 3-foot stop box.', brief: 'Back the trailer into the alley on your left and stop with its rear in the yellow box.', free: 2, width: 12, boxDepth: 3 })
   ];
 
   function inBounds(L, p) { return L.zones.some(function (r) { return inRect(p, r); }); }
   function hardStop(L, p) {
     return p.x < 0 || p.x > W || p.y < 0 || p.y > H || L.walls.some(function (r) { return inRect(p, r); });
   }
-  function isDocked(L, st) { return corners(st.x, st.y, st.t2, TL).every(function (p) { return inRect(p, L.dockZone); }); }
-  function isBoxed(L, st) { var r = rearPoint(st); return isDocked(L, st) && inRect(r, [L.box[0] - 0.5, L.box[1] - 0.5, L.box[2] + 0.5, L.box[3] + 0.5]); }
+  function allCorners(st) { return corners(st.x, st.y, st.t1, TR).concat(corners(st.x, st.y, st.t2, TL)); }
+  function frontPoint(st) { return { x: st.x + TR.f * Math.cos(st.t1), y: st.y + TR.f * Math.sin(st.t1) }; }
+  // Backing drills finish on the trailer; forward drills finish on the whole truck.
+  function isDocked(L, st) {
+    var pts = L.dir === 'fwd' ? allCorners(st) : corners(st.x, st.y, st.t2, TL);
+    return pts.every(function (p) { return inRect(p, L.dockZone); });
+  }
+  function isBoxed(L, st) {
+    if (!isDocked(L, st)) return false;
+    if (L.finish === 'park') return Math.abs(norm(st.t2 + PI / 2)) < 0.14 && Math.abs(norm(st.t1 + PI / 2)) < 0.14;      // parked parallel, within 8 degrees
+    var r = L.finish === 'front' ? frontPoint(st) : rearPoint(st);
+    return inRect(r, [L.box[0] - 0.5, L.box[1] - 0.5, L.box[2] + 0.5, L.box[3] + 0.5]);
+  }
+  // The outer edge of the trailer's right rear tyre, for the tracking line.
+  function rightTire(st) { var a = axle(st); return { x: a.x - 4.25 * Math.sin(st.t2), y: a.y + 4.25 * Math.cos(st.t2) }; }
 
   // ---- coach: the steering a good backer would hold right now ----
   function needPullUp(L, st) {
@@ -378,6 +423,11 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     return norm(st.t2) < -1.48 && Math.abs(norm(st.t1 - st.t2)) < 0.1 && a.y > L.turnY + 6 && a.x > 60;
   }
   function recSteer(L, st) {
+    if (L.dir === 'fwd') {      // aim the tractor's front axle at the line
+      var fx = st.x + L1 * Math.cos(st.t1), tx = L.path ? L.path(st) : L.lineX;
+      var wantF = -PI / 2 - Math.atan2(fx - tx, L.look || 22);
+      return Math.max(-1, Math.min(1, 2.2 * norm(wantF - st.t1) / MAXD));
+    }
     if (needPullUp(L, st)) return 0;
     var a = axle(st), want;
     if (L.kind === 'dock') {
@@ -407,7 +457,9 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
   } catch (e) { prog = {}; }
   function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-  function unlocked(i) { return i === 0 || !!prog[LEVELS[i - 1].id]; }
+  // open if the level before it is passed; levels passed before the list grew stay open
+  function unlocked(i) { return i === 0 || LEVELS.slice(i - 1).some(function (lv) { return !!prog[lv.id]; }); }
+  var COUNT = { pullups: 'Pull-ups', stops: 'Stops', backups: 'Back-ups' };
   function starStr(n) { return '★★★'.slice(0, n) + '<i>' + '★★★'.slice(n) + '</i>'; }
 
   // ---- run state ----
@@ -453,7 +505,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     finished = true; s.v = 0; onboarded = true; save('cdl.onboarded', '1');
     $('sheet').innerHTML =
       '<div class="sheet-head"><div><h2>Controls: done</h2><small>First Moves</small></div><div class="stamp pass">READY</div></div>' +
-      '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 puts those together in a straight lane, with the coach calling every turn.</p>' +
+      '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 starts simple: drive down a lane and stop in the box, with the coach calling every move.</p>' +
       '<div class="btns"><button type="button" id="tomenu">Levels</button><button type="button" id="next" class="go">Start Level 1</button></div>';
     $('sheet').hidden = false;
     $('next').addEventListener('click', function () { startLevel(0); });
@@ -466,7 +518,8 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     $('eyebrow').hidden = false; $('b-levels').hidden = true; $('title').textContent = 'Backing Course';
   }
   var s, cones, steer = 0, pullups, enc, elapsed, started, finished, hasReversed, lastDir,
-      dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0;
+      dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0,
+      moving = false, backArmed = false, revFt = 0, gateDone = false, trackMiss = false;
   var ptrDrive = 0, keys = {};
 
   function reset() {
@@ -474,6 +527,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     cones = L.cones.map(function (k) { return { x: k.x, y: k.y, hit: false }; });
     pullups = 0; enc = 0; elapsed = 0;
     started = false; finished = false; hasReversed = false; lastDir = 0; pullArmed = false; fwdFt = 0; endAt = 0;
+    moving = false; backArmed = false; revFt = 0; gateDone = false; trackMiss = false;
     dirty = false; bumped = false; jack = false; coachHold = null; coachedRun = guideOn;
     camYaw = 0.3;
     if (L.kind === 'tutorial' && tut) tutMark();
@@ -490,6 +544,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     LEVELS.forEach(function (lv, i) { if (next < 0 && !prog[lv.id]) next = i; });
     LEVELS.forEach(function (lv, i) {
       var open = unlocked(i), p = prog[lv.id];
+      if (!i || lv.group !== LEVELS[i - 1].group) html += '<p class="grp">' + lv.group + '</p>';
       var right = !open ? '<span class="tag">Locked</span>'
         : p ? '<span class="stars" aria-label="' + p.stars + ' of 3 stars">' + starStr(p.stars) + '</span>'
         : '<span class="tag">' + (i === next ? 'Start' : 'Open') + '</span>';
@@ -507,6 +562,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     $('eyebrow').hidden = true; $('b-levels').hidden = false;
     $('b-levels').textContent = '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
     $('title').textContent = L.name;
+    $('l-pull').textContent = COUNT[L.count || 'pullups'];
     buildLevel(); reset(); fit();
   }
 
@@ -522,7 +578,10 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
 
     var top = drive > 0 ? FWD_SPEED : SPEED;
     s.v += (drive * top - s.v) * Math.min(1, dt * 6);
-    if (Math.abs(s.v) < 0.02) { s.v = 0; return; }
+    if (Math.abs(s.v) < 0.02) {
+      if (moving) { moving = false; if (L.count === 'stops') pullups++; }
+      s.v = 0; return;
+    }
 
     var prev = { x: s.x, y: s.y, t1: s.t1, t2: s.t2 };
     var phi0 = Math.abs(norm(s.t1 - s.t2));
@@ -540,9 +599,21 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     bumped = false;
 
     if (!started) started = true;
-    // a pull-up is one stop after backing, followed by at least a foot of forward travel
-    if (s.v < -0.4) { hasReversed = true; pullArmed = true; fwdFt = 0; }
-    else if (s.v > 0 && pullArmed) { fwdFt += s.v * dt; if (fwdFt >= 1) { pullups++; pullArmed = false; } }
+    if (Math.abs(s.v) > 0.4) moving = true;
+    if (L.count === 'backups') {
+      // a back-up is at least a foot of reverse travel on a forward drill
+      if (s.v > 0.4) { backArmed = true; revFt = 0; }
+      else if (s.v < 0 && backArmed) { revFt -= s.v * dt; if (revFt >= 1) { pullups++; backArmed = false; } }
+    } else if (L.count !== 'stops') {
+      // a pull-up is one stop after backing, followed by at least a foot of forward travel
+      if (s.v < -0.4) { hasReversed = true; pullArmed = true; fwdFt = 0; }
+      else if (s.v > 0 && pullArmed) { fwdFt += s.v * dt; if (fwdFt >= 1) { pullups++; pullArmed = false; } }
+    }
+    // tracking line: checked once, as the trailer wheels pass the cone
+    if (L.gate && !gateDone && axle(prev).y > L.gate.y && axle(s).y <= L.gate.y) {
+      gateDone = true; trackMiss = rightTire(s).x < L.gate.x0;
+      if (trackMiss) coachHold = { t: 'The trailer wheels cut inside the white line. That costs tracking points.', w: 1, until: performance.now() + 3200 };
+    }
     var touching = false;
     cones.forEach(function (k) {
       if (coneIn(k, s.x, s.y, s.t1, TR) || coneIn(k, s.x, s.y, s.t2, TL)) { k.hit = true; touching = true; }
@@ -554,14 +625,26 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
   function restore(p) { s.x = p.x; s.y = p.y; s.t1 = p.t1; s.t2 = p.t2; s.v = 0; }
 
   // ---- coach ----
+  function fwdLine() {
+    if (!guideOn) return { t: !started ? L.brief : L.finish === 'front' ? 'Stop with the front bumper in the yellow box.' : 'The trailer cuts corners. Watch its wheels, not the cab.' };
+    var r = recSteer(L, s), diff = r - steer, near = Math.abs(diff) < 0.15;
+    var turn = near ? 'Hold the wheel there.' : (diff > 0 ? 'Turn right, to the white mark.' : 'Turn left, to the white mark.');
+    if (!started && near) return { t: 'Hold FWD to pull forward. Keep the yellow tick on the white mark.', cue: 'fwd' };
+    var why;
+    if (L.finish === 'front') why = frontPoint(s).y - L.box[3] < 12 ? 'Get ready: let go of FWD as the bumper reaches the yellow box.' : 'Keep it straight down the lane.';
+    else why = !gateDone ? 'The cab goes left first. Trailer wheels stay right of the white line until the cone.'
+      : 'Swing wide, then come back to the middle so the trailer straightens.';
+    return { t: turn + ' ' + why, cue: 'fwd' };
+  }
   function coachLine() {
     if (L.kind === 'tutorial') return tutLine();
     if (coachHold && performance.now() < coachHold.until) return coachHold;
     if (finished) return { t: 'Brake set. Your sheet is up.' };
     if (jack) return { t: 'Jackknifed. Pull forward to straighten out.', w: 1, cue: 'fwd' };
     if (bumped) return { t: 'You hit the stop. Ease forward a foot.', w: 1, cue: 'fwd' };
-    if (dirty) return { t: 'Over the line. That is an encroachment. Pull up and fix it.', w: 1 };
-    if (inBox()) return { t: 'Stop. Rear is in the box. Set the brake to finish.', cue: 'brake' };
+    if (dirty) return { t: 'Over the line. That is an encroachment. ' + (L.dir === 'fwd' ? 'Back up and get inside the lines.' : 'Pull up and fix it.'), w: 1 };
+    if (inBox()) return { t: (L.finish === 'front' ? 'Stop. The bumper is in the box.' : L.finish === 'park' ? 'Stop. The whole truck is in the zone.' : 'Stop. Rear is in the box.') + ' Set the brake to finish.', cue: 'brake' };
+    if (L.dir === 'fwd') return fwdLine();
     var phi = Math.abs(norm(s.t1 - s.t2)) * 180 / PI;
     if (!guideOn) {
       if (!hasReversed) return { t: L.brief };
@@ -606,13 +689,13 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     var dnf = !docked();
     if (dnf && !(endAt && performance.now() < endAt)) {
       endAt = performance.now() + 4000;
-      coachHold = { t: (L.kind === 'dock' ? 'The trailer is not fully in the alley.' : 'The trailer is not back in the lane yet.') + ' Tap Set brake again to end this attempt.', w: 1, cue: 'brake', until: endAt };
+      coachHold = { t: (L.notIn || (L.kind === 'dock' ? 'The trailer is not fully in the alley.' : 'The trailer is not back in the lane yet.')) + ' Tap Set brake again to end this attempt.', w: 1, cue: 'brake', until: endAt };
       return;
     }
     finished = true; s.v = 0;
     var extra = Math.max(0, pullups - L.free);
     var boxed = inBox();
-    var pts = extra + enc * 2 + (boxed ? 0 : 4);
+    var pts = extra + enc * 2 + (boxed ? 0 : 4) + (trackMiss ? 2 : 0);
     var deg = Math.abs(norm(L.kind === 'dock' ? s.t2 : s.t2 + PI / 2)) * 180 / PI;
     var pass = !dnf && pts <= PASS_AT;
     var stars = !pass ? 0 : coachedRun ? 1 : pts <= 1 ? 3 : 2;
@@ -634,9 +717,10 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
       '<div class="sheet-head"><div><h2>Score sheet</h2><small>' + L.name + (coachedRun ? ' · coached' : ' · solo') + '</small></div>' +
       '<div class="stamp ' + (pass ? 'pass' : 'retry') + '">' + (pass ? 'PASS' : 'RETRY') + '</div></div>' +
       '<table>' +
-      tr('Pull-ups', pullups + ' (' + L.free + ' free)', extra) +
+      tr(COUNT[L.count || 'pullups'], pullups + ' (' + L.free + ' free)', extra) +
+      (L.gate ? tr('Tracking line', trackMiss ? 'trailer cut inside' : 'held', trackMiss ? 2 : 0) : '') +
       tr('Encroachments', enc + ' × 2', enc * 2) +
-      tr('Final position', dnf ? 'did not finish' : boxed ? 'in stop box' : 'short of box', boxed ? 0 : 4) +
+      tr('Final position', dnf ? 'did not finish' : boxed ? (L.posOk || 'in stop box') : (L.posBad || 'short of box'), boxed ? 0 : 4) +
       tr('Trailer angle', deg.toFixed(1) + '° off straight', '') +
       tr('Time', clock(elapsed), '') +
       '<tr class="total"><td>Points</td><td></td><td>' + pts + '</td></tr></table>' +
@@ -895,6 +979,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
     flat(levelG, L.box, 0.05, M.box).receiveShadow = false;
     L.lines.forEach(function (l) { stripe(levelG, l[0], l[1], l[2], l[3], 0.45, 0.06, M.paint); });
     L.walls.forEach(function (r) { bx(levelG, r[2] - r[0], 4.5, r[3] - r[1], (r[0] + r[2]) / 2, 2.25, (r[1] + r[3]) / 2, M.wall); });
+    if (L.gate) stripe(levelG, L.gate.x0, L.gate.y - 14, L.gate.x0, L.gate.y + 22, 0.5, 0.06, M.white);      // tracking line
     (L.marks || []).forEach(function (mk) {
       var l = mk.line, len = Math.hypot(l[2] - l[0], l[3] - l[1]), n = Math.floor(len / 3.4);
       for (var i = 0; i < n; i++) {
@@ -959,8 +1044,8 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
       g.rotation.x = k.hit ? PI / 2 : 0; g.position.y = k.hit ? 0.7 : 0;
     });
     var show = coaching();
-    marksG.visible = show; pathG.visible = show; axleMark.visible = show;
-    if (show) {
+    marksG.visible = show; pathG.visible = show && L.dir !== 'fwd'; axleMark.visible = show;
+    if (pathG.visible) {
       var tp = tailPath();
       dots.forEach(function (m, i) {
         var a = tp[i * 2], b = tp[i * 2 + 1];
