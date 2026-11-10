@@ -1,0 +1,225 @@
+<title>CDL Backing Course</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one screen. Score strip on top, the test pad fills the middle, truck controls sit under the thumbs. */
+:root {
+  color-scheme: dark;
+  --asphalt: #25282b;      /* page ground */
+  --pad: #3b3f43;          /* drivable test pad */
+  --off: #1d2022;          /* out of bounds */
+  --paint: #f2c230;        /* boundary paint, parking brake knob */
+  --cone: #ff6a1a;
+  --paper: #dfe8dc;        /* examiner's form green */
+  --ink: #19211d;
+  --steel: #4b5056;
+  --steel-hi: #62686f;
+  --text: #eef0ee;
+  --muted: #a4abad;
+  --soft: #c9ced0;
+  --cab: #1f7a6d;
+  --trailer: #eceeec;
+  --bad: #e5484d;
+  --good: #2f9e62;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+}
+html, body { height: 100%; }
+body {
+  background: var(--asphalt); color: var(--text);
+  font-family: var(--body); font-size: 15px; overflow: hidden;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.app {
+  height: 100%; max-width: 620px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 8px;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.game { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+
+/* score strip */
+.hud { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.eyebrow {
+  display: block; font-family: var(--display); font-weight: 600; font-size: 12px;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--paint);
+}
+button.eyebrow { white-space: nowrap; background: none; border: 0; padding: 6px 10px 6px 0; margin: -6px 0 0; cursor: pointer; font-size: 13px; }
+h1 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 30px; line-height: .95; letter-spacing: .01em; text-transform: uppercase; }
+.stats { display: flex; gap: 14px; margin: 0; }
+.stats div { text-align: right; }
+.stats dt { white-space: nowrap; font-family: var(--display); font-weight: 600; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.stats dd { margin: 0; font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stats dd.hot { color: var(--cone); }
+
+/* level list */
+.menu { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.menu > p { margin: 0 0 2px; font-size: 14px; line-height: 1.4; color: var(--soft); max-width: 46ch; }
+.lvl {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px;
+  width: 100%; min-height: 76px; padding: 10px 14px; text-align: left; cursor: pointer;
+  border: 1px solid var(--steel); border-radius: 6px; background: var(--pad); color: var(--text); font-family: var(--body);
+}
+.lvl .n { font-family: var(--display); font-weight: 700; font-size: 38px; line-height: 1; color: var(--paint); }
+.lvl strong { display: block; font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1.05; text-transform: uppercase; letter-spacing: .02em; }
+.lvl span.sub { display: block; margin-top: 2px; font-size: 13px; line-height: 1.3; color: var(--soft); }
+.lvl .stars { font-size: 19px; letter-spacing: 2px; color: var(--paint); white-space: nowrap; }
+.lvl .stars i { font-style: normal; color: var(--steel-hi); }
+.lvl .tag { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.lvl.up { border-color: var(--paint); }
+.lvl.up .tag { color: var(--ink); background: var(--paint); padding: 5px 9px 4px; border-radius: 3px; }
+.lvl:disabled { cursor: not-allowed; background: transparent; }
+.lvl:disabled .n, .lvl:disabled strong, .lvl:disabled .sub { color: var(--steel-hi); }
+.menu .legend { margin-top: 4px; font-size: 13px; color: var(--muted); }
+
+.coach {
+  margin: 0; min-height: 2.6em; display: flex; align-items: center;
+  font-size: 14px; line-height: 1.3; color: var(--text);
+  border-left: 3px solid var(--paint); padding-left: 10px;
+}
+.coach.warn { border-left-color: var(--cone); }
+
+/* the pad */
+.yard { position: relative; flex: 1; min-height: 0; border-radius: 6px; overflow: hidden; background: var(--off); }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#cv { pointer-events: none; }
+.views { position: absolute; top: 8px; left: 8px; display: flex; border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,.35); background: rgba(20,22,24,.78); }
+.views button { border: 0; background: transparent; color: var(--text); cursor: pointer; min-height: 36px; padding: 0 11px; font-family: var(--display); font-weight: 600; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; touch-action: manipulation; }
+.views button[aria-pressed="true"] { background: var(--paint); color: var(--ink); }
+
+/* examiner's sheet */
+.sheet {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(320px, calc(100% - 24px)); max-height: calc(100% - 16px); overflow: auto;
+  background: var(--paper); color: var(--ink);
+  padding: 16px 16px 14px; border-radius: 3px; box-shadow: 0 18px 40px rgba(0,0,0,.5);
+}
+.sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 8px; }
+.sheet-head h2 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1; text-transform: uppercase; }
+.sheet-head small { display: block; margin-top: 3px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+.stamp { font-family: var(--display); font-weight: 700; font-size: 20px; letter-spacing: .08em; line-height: 1; padding: 5px 8px 4px; border: 2.5px solid currentColor; border-radius: 3px; transform: rotate(-5deg); }
+.stamp.pass { color: var(--good); }
+.stamp.retry { color: var(--bad); }
+.sheet table { width: 100%; border-collapse: collapse; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.sheet td { padding: 7px 0; border-bottom: 1px solid rgba(25,33,29,.22); font-size: 14px; }
+.sheet td:nth-child(2) { text-align: right; opacity: .75; padding-right: 12px; white-space: nowrap; }
+.sheet td:last-child { text-align: right; font-weight: 600; width: 3.2em; }
+.sheet tr.total td { border-bottom: 0; border-top: 2px solid var(--ink); font-family: var(--display); font-weight: 700; font-size: 20px; text-transform: uppercase; }
+.sheet .earned { margin: 2px 0 0; font-size: 22px; letter-spacing: 3px; color: #b8860b; }
+.sheet .earned i { font-style: normal; color: rgba(25,33,29,.25); }
+.sheet .note { margin: 4px 0 12px; font-size: 12px; line-height: 1.35; opacity: .8; }
+.sheet .btns { display: flex; gap: 8px; }
+.sheet button {
+  flex: 1; min-height: 46px; border-radius: 4px; cursor: pointer; border: 2px solid var(--ink);
+  background: transparent; color: var(--ink);
+  font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .06em; text-transform: uppercase;
+}
+.sheet button.go { background: var(--ink); color: var(--paper); }
+
+/* tool row */
+.tools { display: grid; grid-template-columns: 1.35fr 1fr 1fr 1fr; gap: 6px; }
+.tools button {
+  min-height: 40px; min-width: 0; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--steel-hi); background: transparent; color: var(--text);
+  font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: .05em; text-transform: uppercase;
+  touch-action: manipulation;
+}
+.tools button.brake { background: var(--paint); border-color: var(--paint); color: var(--ink); font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.tools button.brake::before { content: ""; width: 9px; height: 9px; border: 2px solid var(--ink); transform: rotate(45deg); }
+.tools button[aria-pressed="false"] { color: var(--muted); }
+
+/* truck controls */
+.controls { display: flex; gap: 8px; height: 112px; }
+.steer {
+  flex: 1; min-width: 0; position: relative; border-radius: 6px; background: var(--steel);
+  touch-action: none; cursor: ew-resize; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 0 12px;
+}
+.steer svg { width: 84px; height: 84px; flex: none; }
+.steer-info { min-width: 0; flex: 1; max-width: 170px; max-height: 100%; overflow: hidden; }
+.steer-label { font-family: var(--display); font-weight: 600; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--text); }
+.steer-hint { font-size: 12px; line-height: 1.3; color: var(--soft); margin-top: 2px; }
+.keys { display: none; }
+@media (hover: hover) and (pointer: fine) { .keys { display: block; } .touch { display: none; } }
+.gauge { position: relative; height: 6px; margin-top: 10px; border-radius: 3px; background: rgba(0,0,0,.35); }
+.gauge::before { content: ""; position: absolute; left: 50%; top: -3px; width: 1px; height: 12px; background: rgba(255,255,255,.45); }
+.gauge b { position: absolute; top: -7px; left: 50%; width: 14px; height: 20px; margin-left: -7px; box-sizing: border-box; border: 2px solid #fff; border-radius: 3px; }
+.gauge i { position: absolute; top: -4px; left: 50%; width: 6px; height: 14px; margin-left: -3px; border-radius: 2px; background: var(--paint); }
+.pedal {
+  width: 76px; flex: none; border: 0; border-radius: 6px; cursor: pointer; touch-action: none;
+  background: repeating-linear-gradient(0deg, var(--steel) 0 9px, #43484d 9px 11px);
+  color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; padding: 0 0 10px;
+  font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .05em;
+}
+.pedal small { font-family: var(--body); font-weight: 500; font-size: 11px; letter-spacing: 0; color: var(--soft); }
+.pedal.down { background: repeating-linear-gradient(0deg, var(--steel-hi) 0 9px, #555b61 9px 11px); transform: translateY(2px); }
+.cue { animation: cue 1s ease-in-out infinite; }
+@keyframes cue { 50% { box-shadow: 0 0 0 3px #fff; } }
+@media (prefers-reduced-motion: reduce) { .cue { animation: none; box-shadow: 0 0 0 3px #fff; } }
+button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); outline-offset: 2px; }
+@media (max-width: 430px) { h1 { font-size: 26px; } .stats { gap: 10px; } .stats dd { font-size: 22px; } }
+@media (max-height: 560px) { .controls { height: 92px; } .steer svg { width: 68px; height: 68px; } h1 { font-size: 24px; } }
+</style>
+
+<div class="app">
+  <header class="hud">
+    <div>
+      <span class="eyebrow" id="eyebrow">CDL basic control skills</span>
+      <button class="eyebrow" id="b-levels" type="button" hidden>&lsaquo; Levels</button>
+      <h1 id="title">Backing Course</h1>
+    </div>
+    <dl class="stats" id="stats" hidden>
+      <div><dt>Pull-ups</dt><dd id="s-pull">0</dd></div>
+      <div><dt>Encroach</dt><dd id="s-enc">0</dd></div>
+      <div><dt>Time</dt><dd id="s-time">0:00</dd></div>
+    </dl>
+  </header>
+
+  <main class="menu" id="menu">
+    <p>Four backing drills, easiest first. Pass one to unlock the next. The coach tells you when and which way to turn.</p>
+    <div id="levels"></div>
+    <p class="legend">★ pass with Coach on &nbsp;·&nbsp; ★★ pass solo &nbsp;·&nbsp; ★★★ solo with 1 point or less</p>
+  </main>
+
+  <div class="game" id="game" hidden>
+    <p class="coach" id="coach" aria-live="polite"></p>
+
+    <div class="yard" id="yard">
+      <canvas id="gl" aria-label="View of the test pad with your tractor-trailer"></canvas>
+      <canvas id="cv" aria-hidden="true"></canvas>
+      <div class="views" role="group" aria-label="Camera view">
+        <button type="button" id="v-top" aria-pressed="true">Top</button>
+        <button type="button" id="v-cab" aria-pressed="false">Window</button>
+        <button type="button" id="v-seat" aria-pressed="false">Seat</button>
+      </div>
+      <section class="sheet" id="sheet" hidden aria-live="polite"></section>
+    </div>
+
+    <div class="tools">
+      <button class="brake" id="b-brake" type="button">Set brake</button>
+      <button id="b-center" type="button">Center</button>
+      <button id="b-guide" type="button" aria-pressed="true">Coach on</button>
+      <button id="b-reset" type="button">Reset</button>
+    </div>
+
+    <div class="controls">
+      <div class="steer" id="steer" tabindex="0" role="slider" aria-label="Steering wheel" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+        <svg viewBox="-50 -50 100 100" id="wheel" aria-hidden="true">
+          <circle r="42" fill="none" stroke="#15181a" stroke-width="9"/>
+          <circle r="42" fill="none" stroke="#2c3034" stroke-width="5"/>
+          <path d="M-40 0 H40 M0 0 V40" stroke="#15181a" stroke-width="8" stroke-linecap="round" fill="none"/>
+          <circle r="10" fill="#15181a"/>
+          <rect x="-3" y="-47" width="6" height="10" rx="1.5" fill="#f2c230"/>
+        </svg>
+        <div class="steer-info">
+          <div class="steer-label">Steering</div>
+          <div class="steer-hint touch">Drag left or right. With Coach on, match the white mark.</div>
+          <div class="steer-hint keys">Arrows drive and steer. Space: brake. C: center. V: view. R: reset.</div>
+          <div class="gauge"><b id="target"></b><i id="gauge"></i></div>
+        </div>
+      </div>
+      <button class="pedal" id="p-rev" type="button" aria-label="Reverse, hold to back up">REV<small>hold</small></button>
+      <button class="pedal" id="p-fwd" type="button" aria-label="Forward, hold to pull up">FWD<small>hold</small></button>
+    </div>
+  </div>
+</div>
