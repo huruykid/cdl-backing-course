@@ -11,14 +11,14 @@
     prog = JSON.parse(localStorage.getItem('cdl.progress')) || {};
     onboarded = localStorage.getItem('cdl.onboarded') === '1' || Object.keys(prog).length > 0;
     if (localStorage.getItem('cdl.coach') === 'off') guideOn = false;
-    var sv = localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
+    var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
   } catch (e) { prog = {}; }
   function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function unlocked(i) { return i === 0 || !!prog[LEVELS[i - 1].id]; }
   function starStr(n) { return '★★★'.slice(0, n) + '<i>' + '★★★'.slice(n) + '</i>'; }
 
   // ---- run state ----
-  var mode = 'menu', li = 0, L = LEVELS[0];
+  var mode = 'menu', li = 0, L = LEVELS[0], WHEEL_DEG = 150;      // both steering wheels turn this far each way
 
   // ---- first-visit tutorial: an open lot, one control at a time, each step done by doing it ----
   var TUT = { id: 'tutorial', kind: 'tutorial', name: 'First Moves', free: 99, brief: '',
@@ -73,14 +73,14 @@
     $('eyebrow').hidden = false; $('b-levels').hidden = true; $('title').textContent = 'Backing Course';
   }
   var s, cones, steer = 0, pullups, enc, elapsed, started, finished, hasReversed, lastDir,
-      dirty, bumped, jack, coachHold = null, coachedRun = false;
+      dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0;
   var ptrDrive = 0, keys = {};
 
   function reset() {
     s = { x: L.start.x, y: L.start.y, t1: L.start.t1, t2: L.start.t2, v: 0 };
     cones = L.cones.map(function (k) { return { x: k.x, y: k.y, hit: false }; });
     pullups = 0; enc = 0; elapsed = 0;
-    started = false; finished = false; hasReversed = false; lastDir = 0;
+    started = false; finished = false; hasReversed = false; lastDir = 0; pullArmed = false; fwdFt = 0; endAt = 0;
     dirty = false; bumped = false; jack = false; coachHold = null; coachedRun = guideOn;
     camYaw = 0.3;
     if (L.kind === 'tutorial' && tut) tutMark();
@@ -148,12 +148,9 @@
     bumped = false;
 
     if (!started) started = true;
-    var dir = s.v > 0 ? 1 : -1;
-    if (Math.abs(s.v) > 0.4 && dir !== lastDir) {
-      if (dir > 0 && hasReversed) pullups++;
-      if (dir < 0) hasReversed = true;
-      lastDir = dir;
-    }
+    // a pull-up is one stop after backing, followed by at least a foot of forward travel
+    if (s.v < -0.4) { hasReversed = true; pullArmed = true; fwdFt = 0; }
+    else if (s.v > 0 && pullArmed) { fwdFt += s.v * dt; if (fwdFt >= 1) { pullups++; pullArmed = false; } }
     var touching = false;
     cones.forEach(function (k) {
       if (coneIn(k, s.x, s.y, s.t1, TR) || coneIn(k, s.x, s.y, s.t2, TL)) { k.hit = true; touching = true; }
@@ -214,9 +211,10 @@
       else coachHold = { t: 'Not yet. Finish this step first: ' + STEPS[tut.i].t, w: 1, cue: STEPS[tut.i].cue, until: performance.now() + 2600 };
       return;
     }
-    if (!docked()) {
-      coachHold = { t: L.kind === 'dock' ? 'Not yet. The whole trailer has to be inside the alley before you set the brake.'
-        : 'Not yet. Get the whole trailer into the lane and back to the yellow box.', w: 1, until: performance.now() + 3200 };
+    var dnf = !docked();
+    if (dnf && !(endAt && performance.now() < endAt)) {
+      endAt = performance.now() + 4000;
+      coachHold = { t: (L.kind === 'dock' ? 'The trailer is not fully in the alley.' : 'The trailer is not back in the lane yet.') + ' Tap Set brake again to end this attempt.', w: 1, cue: 'brake', until: endAt };
       return;
     }
     finished = true; s.v = 0;
@@ -224,7 +222,7 @@
     var boxed = inBox();
     var pts = extra + enc * 2 + (boxed ? 0 : 4);
     var deg = Math.abs(norm(L.kind === 'dock' ? s.t2 : s.t2 + PI / 2)) * 180 / PI;
-    var pass = pts <= PASS_AT;
+    var pass = !dnf && pts <= PASS_AT;
     var stars = !pass ? 0 : coachedRun ? 1 : pts <= 1 ? 3 : 2;
     var old = prog[L.id], note;
     if (pass) {
@@ -234,7 +232,8 @@
       prog[L.id] = rec; save('cdl.progress', JSON.stringify(prog));
     }
     var hasNext = li + 1 < LEVELS.length;
-    if (!pass) note = 'Pass at ' + PASS_AT + ' points or under. Fewer points is better.';
+    if (dnf) note = 'Attempt ended before the trailer was in. Reset and go again, or turn Coach on for help.';
+    else if (!pass) note = 'Pass at ' + PASS_AT + ' points or under. Fewer points is better.';
     else if (coachedRun) note = (old ? '' : hasNext ? LEVELS[li + 1].name + ' is unlocked. ' : '') + 'Turn Coach off and run it solo for more stars.';
     else if (stars < 3) note = 'Solo pass. Get it to 1 point or less for the third star.';
     else note = 'Clean solo run.';
@@ -245,7 +244,7 @@
       '<table>' +
       tr('Pull-ups', pullups + ' (' + L.free + ' free)', extra) +
       tr('Encroachments', enc + ' × 2', enc * 2) +
-      tr('Final position', boxed ? 'in stop box' : 'short of box', boxed ? 0 : 4) +
+      tr('Final position', dnf ? 'did not finish' : boxed ? 'in stop box' : 'short of box', boxed ? 0 : 4) +
       tr('Trailer angle', deg.toFixed(1) + '° off straight', '') +
       tr('Time', clock(elapsed), '') +
       '<tr class="total"><td>Points</td><td></td><td>' + pts + '</td></tr></table>' +
@@ -640,7 +639,7 @@
   }
   // The steering wheel, drawn on the overlay. The white notch is where the coach wants the yellow mark.
   function wheelGfx(x, y, r) {
-    var K = 120 * PI / 180;
+    var K = WHEEL_DEG * PI / 180;
     ctx.save(); ctx.setTransform(1, 0, 0, 1, x, y); ctx.lineCap = 'round';
     if (coaching()) {
       var ta = recSteer(L, s) * K - PI / 2;
@@ -667,13 +666,17 @@
     $('v-top').setAttribute('aria-pressed', m === 'top');
     $('v-cab').setAttribute('aria-pressed', m === 'cab');
     $('v-seat').setAttribute('aria-pressed', m === 'seat');
-    save('alleydock.view', m);
+    save('cdl.view', m);
   }
   function setCoach(on) {
     guideOn = on;
     var b = $('b-guide'); b.setAttribute('aria-pressed', on); b.textContent = on ? 'Coach on' : 'Coach off';
     save('cdl.coach', on ? 'on' : 'off');
-    if (mode === 'game') { if (!started) coachedRun = on; else if (on) coachedRun = true; }
+    if (mode === 'game') {
+      if (!started) coachedRun = on; else if (on) coachedRun = true;
+      if (started && !finished && L.kind !== 'tutorial')
+        coachHold = { t: on ? 'Coach on. This run now counts as coached.' : 'Coach off. This run still counts as coached. Tap Reset to start a solo run.', until: performance.now() + 3500 };
+    }
   }
 
   // ---- HUD ----
@@ -697,7 +700,7 @@
   }
   function setSteer(v) {
     steer = Math.max(-1, Math.min(1, v));
-    el.wheel.style.transform = 'rotate(' + (steer * 200).toFixed(1) + 'deg)';
+    el.wheel.style.transform = 'rotate(' + (steer * WHEEL_DEG).toFixed(1) + 'deg)';
     el.gauge.style.left = (50 + steer * 47).toFixed(1) + '%';
     el.steer.setAttribute('aria-valuenow', Math.round(steer * 100));
   }

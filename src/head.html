@@ -31,7 +31,7 @@ body {
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
 }
 .app {
-  height: 100%; max-width: 620px; margin: 0 auto;
+  height: 100%; box-sizing: border-box; max-width: 620px; margin: 0 auto;
   display: flex; flex-direction: column; gap: 8px;
   padding-block: 10px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -173,6 +173,24 @@ canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block
 button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); outline-offset: 2px; }
 @media (max-width: 430px) { h1 { font-size: 26px; } .stats { gap: 10px; } .stats dd { font-size: 22px; } }
 @media (max-height: 560px) { .controls { height: 92px; } .steer svg { width: 68px; height: 68px; } h1 { font-size: 24px; } }
+@media (max-width: 430px) {
+  .steer { gap: 10px; padding: 0 10px; } .steer svg { width: 66px; height: 66px; }
+  .steer-label { font-size: 12px; letter-spacing: .06em; } .pedal { width: 70px; }
+}
+/* phone held sideways: the pad takes the left, controls stack on the right */
+@media (orientation: landscape) and (max-height: 520px) {
+  .app { max-width: none; gap: 4px; padding-block: 6px; }
+  .hud { align-items: center; } h1 { font-size: 20px; } .stats dd { font-size: 18px; }
+  .game { display: grid; grid-template-columns: minmax(0, 1fr) 250px; grid-template-rows: auto minmax(0, 1fr) auto; gap: 6px 10px; }
+  .yard { grid-column: 1; grid-row: 1 / 4; }
+  .coach { grid-column: 2; grid-row: 1; font-size: 13px; min-height: 3.9em; }
+  .controls { grid-column: 2; grid-row: 2; height: auto; min-height: 0; }
+  .tools { grid-column: 2; grid-row: 3; grid-template-columns: 1fr 1fr; }
+  .tools button { min-height: 34px; }
+  .steer { flex-direction: column; gap: 4px; padding: 6px; } .steer svg { width: 54px; height: 54px; }
+  .steer-hint { display: none; } .steer-info { flex: none; width: 100%; }
+  .pedal { width: 58px; }
+}
 </style>
 
 <div class="app">
@@ -238,7 +256,7 @@ button:focus-visible, .steer:focus-visible { outline: 2px solid var(--paint); ou
         </svg>
         <div class="steer-info">
           <div class="steer-label">Steering</div>
-          <div class="steer-hint touch">Drag left or right. With Coach on, match the white mark.</div>
+          <div class="steer-hint touch">Drag left or right.</div>
           <div class="steer-hint keys">Arrows drive and steer. Space: brake. C: center. V: view. R: reset.</div>
           <div class="gauge"><b id="target"></b><i id="gauge"></i></div>
         </div>
