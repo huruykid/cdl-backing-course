@@ -1,4 +1,6 @@
-<title>CDL Backing Course</title>
+<title>Backing Course | A Tractor-Trailer Practice Game</title>
+<meta name="description" content="Learn the controls, find your line, and practice six tractor-trailer maneuvers in a 3D yard. Free browser game with guided lessons, coaching and replays.">
+<meta name="theme-color" content="#171b1d">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
 <style>
@@ -235,9 +237,15 @@ button:disabled { opacity:.5; cursor:default; }
 @media (prefers-reduced-motion:reduce) { .sheet .stamp.pass { animation:none; } }
 @media (max-width:360px) { .app { padding-inline:10px; } .steer-info { display:none; } .views button { padding:0 8px; font-size:12px; } .stats { gap:6px; } .session-bar { letter-spacing:.03em; } }
 @media (orientation:landscape) and (max-height:520px) { .session-bar { padding:0; border:0; } .session-bar button { min-height:28px; } .pause-panel h2 { font-size:26px; } .pause-panel p { margin:6px 0; } .replaybar { bottom:6px; padding:6px; } }
+
+.setup{max-width:510px;width:100%;align-self:center;padding-top:16px}.setup-progress{display:flex;align-items:center;justify-content:space-between;font:600 12px var(--display);letter-spacing:.12em;color:var(--paint);margin-bottom:18px}.setup-progress>div{display:flex;gap:5px}.setup-progress i{width:32px;height:3px;background:var(--steel)}.setup-progress i.active{background:var(--paint)}.setup .lede{font-size:42px;margin:0 0 16px;max-width:none}.setup-intro{color:var(--soft);font-size:15px;line-height:1.5;margin:0 0 24px}.experience-options{border:0;padding:0;margin:0 0 20px}.experience-options legend{font-size:13px;color:var(--soft);margin-bottom:12px}.experience-options label{display:flex;align-items:center;gap:12px;border:1px solid var(--steel-hi);padding:16px;border-radius:6px;margin-bottom:9px;cursor:pointer}.experience-options label:has(input:checked){background:#343b30;border-color:var(--paint)}.experience-options input{accent-color:var(--paint);width:18px;height:18px;flex:none}.experience-options strong,.sound-option strong{display:block;font-size:15px;font-weight:600}.experience-options small,.sound-option small{display:block;font-size:12px;line-height:1.5;color:var(--soft);margin-top:3px}.experience-options b{color:var(--steel-hi);margin-left:auto;font:600 25px var(--display)}.sound-option{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:0 0 22px}.sound-option input{accent-color:var(--paint);width:22px;height:22px;flex:none}.setup .choice{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:19px}.setup-footnote{color:var(--muted);font-size:12px;line-height:1.6;text-align:center;margin:14px 0 0}.setup-skip{margin:6px auto 12px;color:var(--muted);font-size:12px}.control-tabs{display:flex;gap:4px;background:var(--off);padding:4px;border-radius:6px;margin-bottom:14px}.control-tabs button{flex:1;min-height:40px;border:0;border-radius:4px;background:transparent;color:var(--soft);font:500 13px var(--body);cursor:pointer}.control-tabs button[aria-pressed=true]{background:var(--steel);color:var(--text)}.control-primer article{display:flex;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--steel)}.control-primer article>div{display:grid;place-items:center;border:1px solid var(--steel-hi);border-radius:5px;min-width:42px;height:42px;color:var(--paint);font-size:24px}.control-primer strong{font-size:15px}.control-primer p{font-size:13px;line-height:1.5;color:var(--soft);margin:4px 0 0}.setup-tip{padding:14px;border-left:2px solid var(--paint);background:var(--off);font-size:13px;line-height:1.6;color:var(--soft);margin:20px 0}.setup-tip strong{color:var(--text)}.learning-reminder{padding:14px;border:1px solid #68734d;background:#30372b;border-radius:6px;font-size:14px}.learning-reminder strong{display:block}.learning-reminder span{display:block;color:var(--soft);font-size:12px;margin-top:4px}.lesson-heading{position:relative}.lesson-heading>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.lesson-heading strong{font:600 19px var(--display);text-transform:uppercase}.lesson-heading button{border:0;padding:7px 0 7px 10px;background:none;color:var(--paint);font:400 12px var(--body);cursor:pointer;text-decoration:underline}.lesson-heading progress{margin-top:2px;height:3px}.lesson-heading p{font-size:12px;line-height:1.4;color:var(--soft);padding:8px 10px;border-left:2px solid var(--paint);background:var(--off);margin:8px 0 0}#lesson-feedback{color:#8fdbb0;font-size:12px;display:block}#lesson-feedback:empty{display:none}.brief-panel{position:absolute;inset:0;z-index:4;background:rgba(22,28,28,.96);display:flex;overflow:auto;padding:22px}.brief-panel>div{max-width:340px;width:100%;margin:auto}.brief-panel h2{font:700 36px/1 var(--display);text-transform:uppercase;margin:10px 0 16px}.brief-panel p:not(.eyebrow){font-size:14px;line-height:1.5;color:var(--soft)}.brief-panel dl{margin:22px 0;display:grid;gap:16px}.brief-panel dt{font:600 10px var(--display);letter-spacing:.12em;color:var(--muted)}.brief-panel dd{font-size:14px;margin:4px 0 0}.brief-panel .brief-tip{border-top:1px solid var(--steel);padding-top:14px;font-size:12px!important}.brief-panel .choice{min-height:46px;font-size:18px}.brief-panel .link{display:block;margin:7px auto 0}.session-bar>span{white-space:nowrap}
+@media(max-width:430px){.session-bar>span{font-size:10px;letter-spacing:.04em}.session-bar button{padding-inline:8px;font-size:12px}.setup .lede{font-size:36px}.setup-intro{font-size:14px}.experience-options label{padding:14px 12px}.brief-panel{padding:18px}.brief-panel h2{font-size:30px}.session-dot{padding:0 3px}}
+@media(max-width:360px){.session-bar>span{font-size:9px}.session-bar button{font-size:11px;padding-inline:6px}.session-bar>div{gap:4px}.setup .lede{font-size:34px}.experience-options small{font-size:11px}.experience-options b{display:none}.lesson-heading strong{font-size:17px}}
+@media(orientation:landscape) and (max-height:520px){.lesson-heading{grid-column:2;grid-row:1}.game:has(.lesson-heading:not([hidden])){grid-template-rows:auto auto minmax(0,1fr) auto}.game:has(.lesson-heading:not([hidden])) .coach{grid-row:2;font-size:12px;min-height:2.6em}.game:has(.lesson-heading:not([hidden])) .controls{grid-row:3}.game:has(.lesson-heading:not([hidden])) .tools{grid-row:4}.game:has(.lesson-heading:not([hidden])) .yard{grid-row:1/5}.lesson-heading strong{font-size:16px}.lesson-heading button{font-size:11px;padding-block:4px}.brief-panel{padding:16px}.brief-panel h2{font-size:26px;margin:6px 0 10px}.brief-panel dl{gap:8px;margin:12px 0}.brief-panel .brief-tip{display:none}}
 </style>
 
-<div class="app">
+<!-- LANDING -->
+<div class="app" id="app" hidden>
   <section class="menu" id="boot-error" hidden role="alert"><h1>Could not open the yard</h1><p id="boot-message"></p><button class="choice go" type="button" onclick="location.reload()">Try again</button></section>
   <header class="hud">
     <div>
@@ -252,15 +260,26 @@ button:disabled { opacity:.5; cursor:default; }
     </dl>
     <div class="tutbar" id="tutbar" hidden><span id="tutstep"></span><button type="button" id="b-skip">Skip</button></div>
   </header>
-  <div class="session-bar"><span>TRAINING YARD <span class="session-dot" aria-hidden="true">●</span> PRACTICE</span><div><button type="button" id="b-sound" aria-pressed="false">Sound off</button><button type="button" id="b-pause">Pause</button></div></div>
+  <div class="session-bar"><span>TRAINING YARD <span class="session-dot" aria-hidden="true">●</span> PRACTICE</span><div><button type="button" id="b-home">Home</button><button type="button" id="b-sound" aria-pressed="false">Sound off</button><button type="button" id="b-pause">Pause</button></div></div>
 
-  <main class="menu welcome" id="welcome" hidden>
-    <p class="lede">Build your confidence. One maneuver at a time.</p>
-    <p>Six driving drills, a step-by-step coach, and instant feedback. Learn the controls, practice your positioning, then try a clean solo run.</p>
-    <div class="welcome-route" aria-label="Your learning path"><span>01 <b>Learn the controls</b></span><span>02 <b>Practice with a coach</b></span><span>03 <b>Earn your solo stars</b></span></div><p class="ask">Have you backed a trailer before?</p>
-    <button type="button" class="choice go" id="w-new">Never. Show me the controls</button>
-    <button type="button" class="choice" id="w-skip">Yes. Take me to the drills</button>
-    <p class="legend">No account needed. Your progress saves in this browser. This is a practice game; course dimensions and scores are not official test standards.</p>
+  <main class="menu welcome setup" id="welcome" hidden>
+    <div class="setup-progress" aria-label="Setup progress"><span id="setup-stage">01 / YOUR PACE</span><div><i id="setup-dot-1" class="active"></i><i id="setup-dot-2"></i></div></div>
+    <section id="setup-preferences"><p class="lede">Let's get you<br>comfortable.</p><p class="setup-intro">A little setup. Then it's you, the rig, and room to practice.</p>
+      <fieldset class="experience-options"><legend>How familiar are you with backing a trailer?</legend>
+        <label><input type="radio" name="experience" value="new" checked><span><strong>I'm starting fresh</strong><small>Show me the controls, one move at a time.</small></span><b aria-hidden="true">01</b></label>
+        <label><input type="radio" name="experience" value="experienced"><span><strong>I know the basics</strong><small>Give me a quick refresher, then let me practice.</small></span><b aria-hidden="true">02</b></label>
+      </fieldset>
+      <label class="sound-option"><span><strong>Sound effects</strong><small>Engine, reverse beeps, and a little celebration.</small></span><input type="checkbox" id="setup-sound" aria-label="Enable sound effects"></label>
+      <button type="button" class="choice go" id="setup-next">Next: your controls <span aria-hidden="true">→</span></button>
+      <p class="setup-footnote">No sign-up. No timer in the first drive. Progress stays in this browser.</p>
+    </section>
+    <section id="setup-controls" hidden><p class="lede">Three things.<br>You're in control.</p><p class="setup-intro" id="setup-path">We'll practice each move together in an open lot.</p>
+      <div class="control-tabs" role="group" aria-label="Control instructions"><button type="button" id="help-keyboard" aria-pressed="true">Keyboard</button><button type="button" id="help-touch" aria-pressed="false">Touch / mouse</button></div>
+      <div class="control-primer"><article><div aria-hidden="true">↔</div><span><strong>Steer the cab</strong><p id="primer-steer">Hold ← or → to turn. Press C to center the wheel.</p></span></article><article><div aria-hidden="true">↕</div><span><strong>Move the rig</strong><p id="primer-drive">Hold ↑ to drive forward, ↓ to reverse. Release to slow down.</p></span></article><article><div aria-hidden="true">◇</div><span><strong>Finish the attempt</strong><p id="primer-brake">Reach the yellow target, then press Space to set the brake.</p></span></article></div>
+      <p class="setup-tip"><strong>The backing trick:</strong> steering right while reversing sends the trailer tail left. You'll see it from above first.</p>
+      <button type="button" class="choice go" id="setup-start">Start guided first drive <span aria-hidden="true">→</span></button><button type="button" class="link" id="setup-back">← Back to setup</button>
+    </section>
+    <button type="button" class="link setup-skip" id="w-skip">Skip setup and choose a drill</button>
   </main>
 
   <main class="menu" id="menu">
@@ -268,10 +287,12 @@ button:disabled { opacity:.5; cursor:default; }
     <div class="course-progress"><div><strong id="progress-count">0 of 6 completed</strong><span id="progress-stars">0 / 18 stars</span></div><progress id="course-meter" max="6" value="0" aria-label="Drills completed"></progress></div>
     <div id="levels"></div>
     <p class="legend">★ pass with Coach on &nbsp;·&nbsp; ★★ pass solo &nbsp;·&nbsp; ★★★ solo with 1 point or less</p>
-    <button type="button" class="link" id="b-howto">How to play</button>
+    <div class="learning-reminder" id="learning-reminder"><strong>Your first drive is waiting.</strong><span>Get comfortable with the controls in an open lot.</span></div>
+    <button type="button" class="link" id="b-howto">Guided first drive</button>
   </main>
 
   <div class="game" id="game" hidden>
+    <div class="lesson-heading" id="lesson-heading" hidden><div><strong id="lesson-title">Get rolling</strong><button type="button" id="lesson-hint-button" aria-expanded="false" aria-controls="lesson-hint">Need a hint?</button></div><progress id="lesson-meter" max="8" value="0" aria-label="First drive progress"></progress><p id="lesson-hint" hidden></p><span id="lesson-feedback" role="status"></span></div>
     <p class="coach" id="coach" aria-live="polite"></p>
 
     <div class="yard" id="yard">
@@ -283,6 +304,7 @@ button:disabled { opacity:.5; cursor:default; }
         <button type="button" id="v-seat" aria-pressed="false">Seat</button>
         <button type="button" id="v-goal" aria-pressed="false">Get out</button>
       </div>
+      <section class="brief-panel" id="brief-panel" hidden aria-labelledby="brief-title"><div><p class="eyebrow" id="brief-number">DRILL 01</p><h2 id="brief-title">Forward Stop</h2><p id="brief-goal"></p><dl><div><dt>YOUR GOAL</dt><dd id="brief-finish"></dd></div><div><dt>COACH</dt><dd id="brief-coach"></dd></div></dl><p class="brief-tip">Take your time. Release the pedal to slow down, then set the brake to finish.</p><button class="choice go" id="brief-start" type="button">Start driving →</button><button class="link" type="button" id="brief-back">Back to drills</button></div></section>
       <section class="sheet" id="sheet" hidden aria-label="Attempt results" aria-live="polite"></section>
       <div id="pause-panel" class="pause-panel" hidden><section><span class="eyebrow">TAKE YOUR TIME</span><h2>Yard paused</h2><p>Your truck and timer are paused. Resume when you are ready.</p><button type="button" id="b-resume" class="choice go">Resume driving</button><button type="button" id="pause-levels" class="choice">Back to levels</button></section></div>
       <div id="replaybar" class="replaybar" hidden><div><strong>ATTEMPT REPLAY</strong><span id="replay-time">0:00</span><button type="button" id="replay-speed">1×</button><button type="button" id="replay-done">Results</button></div><input id="replay-seek" type="range" min="0" max="1" step="1" value="0" aria-label="Replay position"></div>

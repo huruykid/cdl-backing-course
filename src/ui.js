@@ -6,6 +6,7 @@
   function $(id) { return document.getElementById(id); }
 
   // ---- saved progress ----
+  var setupDone = false;
   var prog = {}, guideOn = true, viewMode = 'top', onboarded = false;
   try {
     var savedProgress = JSON.parse(localStorage.getItem('cdl.progress')) || {};
@@ -16,7 +17,8 @@
         if (Number.isFinite(p.pts) && p.pts >= 0 && Number.isFinite(p.time) && p.time >= 0) { prog[lv.id].pts = p.pts; prog[lv.id].time = p.time; }
       }
     });
-    onboarded = localStorage.getItem('cdl.onboarded') === '1' || Object.keys(prog).length > 0;
+    setupDone = localStorage.getItem('cdl.setup.v2') === 'done';
+    onboarded = localStorage.getItem('cdl.tutorial.v2') === 'complete' || Object.keys(prog).length > 0;
     if (localStorage.getItem('cdl.coach') === 'off') guideOn = false;
     var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
   } catch (e) { prog = {}; }
@@ -27,60 +29,112 @@
   function starStr(n) { return '★★★'.slice(0, n) + '<i>' + '★★★'.slice(n) + '</i>'; }
 
   // ---- run state ----
-  var mode = 'menu', li = 0, L = LEVELS[0], WHEEL_DEG = 150;      // both steering wheels turn this far each way
+  var briefing = false, experience = 'new', controlHelp = 'keyboard';
+  var mode = 'home', li = 0, L = LEVELS[0], WHEEL_DEG = 150;      // both steering wheels turn this far each way
 
   // ---- first-visit tutorial: an open lot, one control at a time, each step done by doing it ----
   var TUT = { id: 'tutorial', kind: 'tutorial', name: 'First Moves', free: 99, brief: '',
-    start: { x: 62, y: 34, t1: -PI / 2, t2: -PI / 2 },
+    start: { x: 62, y: 65, t1: -PI / 2, t2: -PI / 2 },
     zones: [[6, 4, 96, 118]], lines: [[6, 4, 96, 4], [96, 4, 96, 118], [96, 118, 6, 118], [6, 118, 6, 4]],
     cones: [], box: [0, 0, 0, 0], dockZone: [0, 0, 0, 0], walls: [], labels: [] };
   var tut = null;
   function moved() { return Math.hypot(s.x - tut.s0.x, s.y - tut.s0.y); }
+  function controlsText(touch, keyboard) { return controlHelp === 'touch' ? touch : keyboard; }
   var STEPS = [
-    { t: 'Hold FWD to pull forward. Press higher on the pedal to go faster.', cue: 'fwd', done: function () { return moved() > 10; } },
-    { t: 'Drag the steering wheel all the way right.', cue: 'steer', done: function () { return steer > 0.75; } },
-    { t: 'Now drag it all the way left.', cue: 'steer', done: function () { return steer < -0.75; } },
-    { t: 'Tap Center to straighten the wheel.', cue: 'center', done: function () { return Math.abs(steer) < 0.03; } },
-    { t: 'Turn the wheel right and hold REV. Watch the trailer tail swing left.', cue: 'rev', done: function () { return s.v < 0 && Math.abs(norm(s.t1 - s.t2)) > 0.45; } },
-    { t: 'Now steer the other way and keep backing until the truck is straight again.', cue: 'rev', done: function () { return moved() > 3 && Math.abs(norm(s.t1 - s.t2)) < 0.07; } },
-    { t: 'Tap Window or Seat to see it from the cab.', cue: 'views', done: function () { return viewMode !== tut.view0; } },
-    { t: 'Tap Set brake. That is how you finish every drill.', cue: 'brake', done: function () { return false; } }
+    { title: 'Get rolling', t: function () { return controlsText('Hold FWD to move forward about 10 feet. Release to slow down.', 'Hold ↑ to move forward about 10 feet. Release to slow down.'); }, cue: 'fwd', hint: 'Start with a straight wheel. This is an open lot, so there is no score to worry about. On a pedal, press near the bottom to go slowly.', success: 'You moved the rig forward.', done: function () { return s.v > 0 && moved() > 10; } },
+    { title: 'Feel the steering', t: function () { return controlsText('Drag the steering wheel to the right.', 'Hold → until the steering wheel turns well to the right.'); }, cue: 'steer', hint: 'The yellow tick shows your steering position. The wheel stays where you leave it; it does not center automatically.', success: 'Right steering: done.', done: function () { return steer > 0.75; } },
+    { title: 'Try the other direction', t: function () { return controlsText('Drag the steering wheel to the left.', 'Hold ← until the steering wheel turns well to the left.'); }, cue: 'steer', hint: 'Keep holding the left arrow, or drag farther left. The truck can stay stopped while you practice steering.', success: 'Left steering: done.', done: function () { return steer < -0.75; } },
+    { title: 'Find the center', t: function () { return controlsText('Tap Center to straighten your front wheels.', 'Press C to straighten your front wheels.'); }, cue: 'center', hint: 'Center straightens the front wheels, not the whole truck. The trailer only changes direction while you move.', success: 'Your front wheels are centered.', done: function () { return Math.abs(steer) < 0.03; } },
+    { title: 'See how backing works', t: function () { return controlsText('Steer right, then hold REV. Watch the trailer tail move left.', 'Hold → to steer right, then hold ↓ to reverse. Watch the trailer tail move left.'); }, cue: 'rev', hint: 'Use a clear right turn on the wheel and keep backing slowly. The cab bends one way while the trailer tail starts moving the other way. We will stop you after the turn.', success: 'You made your first backing turn.', done: function () { return s.v < 0 && norm(s.t1 - s.t2) < -0.4; } },
+    { title: 'Give yourself room', t: function () { return controlsText('Tap Center, then hold FWD until the cab and trailer line up.', 'Press C, then hold ↑ until the cab and trailer line up.'); }, cue: 'fwd', hint: 'Keep the wheel centered and pull forward. A pull-up reduces the angle between the cab and trailer and gives you room to try again.', success: 'The rig is straight again.', done: function () { return s.v > 0 && moved() > 3 && Math.abs(norm(s.t1 - s.t2)) < 0.12; } },
+    { title: 'Check your mirrors', t: function () { return 'Select Seat to see the yard from the cab and find your left and right mirrors.'; }, cue: 'views', hint: 'Top helps you understand the whole rig. Window looks back from the cab. Seat puts both mirrors in view. You can switch whenever you like.', success: 'You have found the in-cab view.', done: function () { return viewMode === 'seat'; } },
+    { title: 'Finish with the brake', t: function () { return controlsText('Tap Set brake to complete your first drive.', 'Press Space to set the brake and complete your first drive.'); }, cue: 'brake', hint: 'In a scored drill, reach the yellow target first, then set the brake. There is no target to find in this controls lesson.', success: '', done: function () { return false; } }
   ];
-  function tutMark() { tut.s0 = { x: s.x, y: s.y, t2: s.t2 }; tut.view0 = viewMode; $('tutstep').textContent = 'Step ' + (tut.i + 1) + ' of ' + STEPS.length; }
+  function tutMark() {
+    tut.s0 = { x: s.x, y: s.y, t2: s.t2 }; tut.view0 = viewMode;
+    $('tutstep').textContent = (tut.i + 1) + ' / ' + STEPS.length;
+    $('lesson-title').textContent = STEPS[tut.i].title;
+    $('lesson-meter').value = tut.i;
+    $('lesson-hint').textContent = STEPS[tut.i].hint; $('lesson-hint').hidden = true;
+    $('lesson-hint-button').setAttribute('aria-expanded', 'false');
+  }
   function tutTick() {
     if (!tut || finished || !STEPS[tut.i].done()) return;
-    chime('step'); tut.i++; tutMark(); coachHold = { t: 'Good.', until: performance.now() + 650 };
+    var success = STEPS[tut.i].success;
+    releaseControls(); s.v = 0; chime('step'); tut.i++; tutMark();
+    $('lesson-feedback').textContent = '✓ ' + success;
+    tut.feedbackUntil = performance.now() + 2200;
+    coachHold = null;
   }
   function tutLine() {
     if (coachHold && performance.now() < coachHold.until) return coachHold;
-    if (finished) return { t: 'That is every control you need.' };
-    if (jack) return { t: 'Jackknifed. Hold FWD to straighten out.', w: 1, cue: 'fwd' };
-    if (bumped) return { t: 'End of the lot. Hold FWD to pull forward.', w: 1, cue: 'fwd' };
-    return STEPS[tut.i];
+    if (finished) return { t: 'First drive complete. You are ready for a coached drill.' };
+    if (tut.feedbackUntil && performance.now() > tut.feedbackUntil) { $('lesson-feedback').textContent = ''; tut.feedbackUntil = 0; }
+    if (jack) return { t: 'The rig is bent too far. Center the wheel and pull forward to make room.', w: 1, cue: 'fwd' };
+    if (bumped) return { t: 'You reached the edge of the lot. Tap Reset to start fresh.', w: 1 };
+    return { t: STEPS[tut.i].t(), cue: STEPS[tut.i].cue };
   }
+  function showApp() {
+    $('landing').hidden = true; $('app').hidden = false; document.body.classList.remove('home-mode');
+  }
+  function showHome() {
+    stopReplay(); releaseControls(); briefing = false; paused = false; mode = 'home';
+    $('pause-panel').hidden = true; $('brief-panel').hidden = true;
+    $('app').hidden = true; $('landing').hidden = false; document.body.classList.add('home-mode');
+    $('hero-play').innerHTML = (onboarded ? 'Continue practicing' : setupDone ? 'Enter the practice yard' : 'Start your first drive') + ' <span aria-hidden="true">↗</span>';
+    $('entry-note').textContent = onboarded ? 'Your progress is saved in this browser. Pick up where you left off.' : 'Free to play. No account. Keyboard or touch.';
+    window.scrollTo(0, 0);
+  }
+  function enterYard() { if (onboarded || setupDone) showMenu(); else showWelcome(); }
+  function setControlHelp(value) {
+    controlHelp = value;
+    $('help-keyboard').setAttribute('aria-pressed', String(value === 'keyboard'));
+    $('help-touch').setAttribute('aria-pressed', String(value === 'touch'));
+    $('primer-steer').textContent = controlsText('Drag the steering wheel left or right. Tap Center to straighten it.', 'Hold ← or → to turn. Press C to center the wheel.');
+    $('primer-drive').textContent = controlsText('Hold FWD or REV. Press higher on the pedal for more speed; release to slow down.', 'Hold ↑ to drive forward, ↓ to reverse. Release to slow down.');
+    $('primer-brake').textContent = controlsText('Reach the yellow target, then tap Set brake to finish the attempt.', 'Reach the yellow target, then press Space to set the brake.');
+  }
+  function setupNext() {
+    experience = document.querySelector('input[name="experience"]:checked').value;
+    $('setup-preferences').hidden = true; $('setup-controls').hidden = false;
+    $('setup-stage').textContent = '02 / YOUR CONTROLS'; $('setup-dot-2').classList.add('active');
+    $('setup-path').textContent = experience === 'new' ? "We'll practice each move together in an open lot." : 'A quick refresher. Then pick your first drill in the yard.';
+    $('setup-start').textContent = experience === 'new' ? 'Start guided first drive →' : 'Choose a drill →';
+    $('welcome').scrollTop = 0; $('help-keyboard').focus();
+  }
+  function setupBack() {
+    $('setup-preferences').hidden = false; $('setup-controls').hidden = true;
+    $('setup-stage').textContent = '01 / YOUR PACE'; $('setup-dot-2').classList.remove('active'); $('welcome').scrollTop = 0;
+  }
+  function beginDrill() { briefing = false; $('brief-panel').hidden = true; releaseControls(); $('steer').focus(); }
   function startTutorial() {
-    stopReplay(); $('b-pause').hidden = false; L = TUT; mode = 'game'; tut = { i: 0 };
+    showApp(); stopReplay(); $('b-pause').hidden = false; L = TUT; mode = 'game'; tut = { i: 0 };
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = true; $('tutbar').hidden = false;
+    $('lesson-heading').hidden = false; $('lesson-feedback').textContent = '';
     $('v-goal').hidden = true;
-    $('eyebrow').hidden = true; $('b-levels').hidden = false; $('b-levels').textContent = '‹ Exit';
-    $('title').textContent = TUT.name;
-    buildLevel(); reset(); fit();
+    $('eyebrow').hidden = true; $('b-levels').hidden = false; $('b-levels').textContent = '‹ Exit lesson';
+    $('title').textContent = 'Your first drive'; setView('top');
+    buildLevel(); reset(); fit(); $('steer').focus();
   }
   function finishTutorial() {
-    $('b-pause').hidden = true; finished = true; releaseControls(); chime('win'); s.v = 0; onboarded = true; save('cdl.onboarded', '1');
+    $('b-pause').hidden = true; finished = true; releaseControls(); chime('win'); s.v = 0; onboarded = true; save('cdl.tutorial.v2', 'complete');
+    $('lesson-meter').value = STEPS.length; $('lesson-feedback').textContent = '✓ First drive complete.';
     $('sheet').innerHTML =
-      '<div class="sheet-head"><div><h2>Controls: done</h2><small>First Moves</small></div><div class="stamp pass">READY</div></div>' +
-      '<p class="done">You can pull up, steer, back the trailer, change the view, and set the brake. Level 1 starts simple: drive down a lane and stop in the box, with the coach calling every move.</p>' +
-      '<div class="btns"><button type="button" id="tomenu">Levels</button><button type="button" id="next" class="go">Start Level 1</button></div>';
+      '<div class="sheet-head"><div><h2>You have the controls.</h2><small>First drive complete · 8 of 8</small></div><div class="stamp pass">READY</div></div>' +
+      '<p class="done">You steered, backed up, used a pull-up to straighten the rig, checked your mirrors, and set the brake. Next: stop in the yellow box. The coach will help with your first scored run.</p>' +
+      '<div class="btns"><button type="button" id="tomenu">Levels</button><button type="button" id="next" class="go">Try your first drill</button></div>';
     $('sheet').hidden = false;
-    $('next').addEventListener('click', function () { startLevel(0); });
+    $('next').addEventListener('click', function () { setCoach(true); setView('top'); startLevel(0); });
+    $('next').focus();
     $('tomenu').addEventListener('click', showMenu);
   }
   function coaching() { return guideOn && !finished && L.kind !== 'tutorial'; }
   function showWelcome() {
-    mode = 'menu'; $('b-pause').hidden = true;
+    showApp(); stopReplay(); releaseControls(); mode = 'setup'; $('b-pause').hidden = true; setupBack();
+    $('setup-sound').checked = soundOn;
     $('welcome').hidden = false; $('menu').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
-    $('eyebrow').hidden = false; $('b-levels').hidden = true; $('title').textContent = 'Backing Course';
+    $('eyebrow').hidden = false; $('b-levels').hidden = true; $('title').textContent = 'Welcome to the yard';
+    $('setup-next').focus();
   }
   var s, cones, steer = 0, pullups, enc, elapsed, started, finished, hasReversed, lastDir,
       dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0,
@@ -88,6 +142,7 @@
   var ptrDrive = 0, keys = {}, keyAmt = 0.35, looking = false, looks = 0, goalYaw = 0.9;
 
   function reset() {
+    briefing = false; $('brief-panel').hidden = true; $('lesson-feedback').textContent = '';
     stopReplay(); releaseControls(); paused = false; $('pause-panel').hidden = true; $('b-pause').hidden = mode !== 'game';
     history = []; recordingTime = 0; sampleAt = 0; wasBoxed = false;
     if (tut && L.kind === 'tutorial') tut.i = 0;
@@ -103,12 +158,13 @@
     setSteer(0); history.push(snapshot());
   }
   function showMenu() {
+    showApp(); briefing = false; $('brief-panel').hidden = true; $('lesson-heading').hidden = true;
     stopReplay(); releaseControls(); paused = false; $('pause-panel').hidden = true; mode = 'menu';
     $('b-pause').hidden = true;
     $('menu').hidden = false; $('welcome').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
     $('eyebrow').hidden = false; $('b-levels').hidden = true;
     $('title').textContent = 'Backing Course';
-    if (!onboarded) { onboarded = true; save('cdl.onboarded', '1'); }
+    $('learning-reminder').hidden = onboarded;
     var completed = LEVELS.filter(function (lv) { return !!prog[lv.id]; }).length;
     $('progress-count').textContent = completed + ' of ' + LEVELS.length + ' completed';
     $('progress-stars').textContent = LEVELS.reduce(function (n, lv) { return n + (prog[lv.id] ? prog[lv.id].stars : 0); }, 0) + ' / 18 stars';
@@ -130,6 +186,7 @@
     box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '8px';
   }
   function startLevel(i) {
+    showApp(); $('lesson-heading').hidden = true;
     stopReplay(); $('b-pause').hidden = false; tut = null; li = i; L = LEVELS[i]; mode = 'game';
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = false; $('tutbar').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false;
@@ -138,6 +195,12 @@
     $('l-pull').textContent = COUNT[L.count || 'pullups'];
     $('v-goal').hidden = L.looksFree == null;
     buildLevel(); reset(); fit();
+    briefing = true; $('brief-panel').hidden = false;
+    $('brief-number').textContent = 'DRILL ' + String(i + 1).padStart(2, '0') + ' / 06';
+    $('brief-title').textContent = L.name; $('brief-goal').textContent = L.brief;
+    $('brief-finish').textContent = L.finish === 'front' ? 'Front bumper in the yellow box' : L.finish === 'park' ? 'Whole rig straight inside the yellow zone' : 'Trailer rear in the yellow stop box';
+    $('brief-coach').textContent = guideOn ? 'On. Follow the white steering mark.' : 'Off. This is a solo attempt.';
+    $('brief-start').focus();
   }
 
   function docked() { return isDocked(L, s); }
@@ -145,6 +208,7 @@
 
   // ---- simulation ----
   function step(dt) {
+    if (briefing || paused) return;
     var kd = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
     keyAmt = kd ? Math.min(1, keyAmt + dt / 0.9) : 0.35;      // holding a key eases the throttle in
     var drive = (finished || looking) ? 0 : (ptrDrive || kd * keyAmt);
@@ -272,10 +336,10 @@
 
   // ---- finish ----
   function setBrake() {
-    if (finished || paused || mode !== 'game') return;
+    if (finished || paused || briefing || mode !== 'game') return;
     if (L.kind === 'tutorial') {
       if (tut.i === STEPS.length - 1) finishTutorial();
-      else coachHold = { t: 'Not yet. Finish this step first: ' + STEPS[tut.i].t, w: 1, cue: STEPS[tut.i].cue, until: performance.now() + 2600 };
+      else coachHold = { t: 'Not yet. Finish this step first: ' + STEPS[tut.i].t(), w: 1, cue: STEPS[tut.i].cue, until: performance.now() + 2600 };
       return;
     }
     if (looking) endLook();
@@ -297,6 +361,7 @@
     var old = prog[L.id], note;
     chime(pass ? 'win' : 'retry');
     if (pass) {
+      onboarded = true;
       var rec = old || { stars: 0 };
       if (stars > rec.stars) rec.stars = stars;
       if (!coachedRun && (rec.pts == null || pts < rec.pts || (pts === rec.pts && elapsed < rec.time))) { rec.pts = pts; rec.time = elapsed; }
@@ -343,9 +408,14 @@
   var cv = $('cv'), ctx = cv.getContext('2d'), yard = $('yard');
   var view = { w: 1, h: 1, dpr: 1 };
   function bootError(message) {
-    $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = true;
-    $('b-sound').hidden = true; $('b-pause').hidden = true;
-    $('boot-message').textContent = message; $('boot-error').hidden = false;
+    showHome();
+    function showFailure() {
+      showApp(); $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = true;
+      $('b-sound').hidden = true; $('b-pause').hidden = true;
+      $('boot-message').textContent = message; $('boot-error').hidden = false;
+    }
+    document.querySelectorAll('[data-enter]').forEach(function (button) { button.addEventListener('click', showFailure); });
+    $('b-home').addEventListener('click', function () { $('boot-error').hidden = true; showHome(); });
   }
   var T = window.THREE, renderer;
   if (!T) { bootError('The 3D engine did not download. Check your connection and try again.'); return; }
@@ -810,12 +880,12 @@
   (function () {
     var drag = null;
     el.steer.addEventListener('pointerdown', function (e) {
-      if (finished || paused || looking) return;
+      if (finished || paused || briefing || looking) return;
       e.preventDefault(); el.steer.setPointerCapture(e.pointerId);
       drag = { id: e.pointerId, x: e.clientX, v: steer, w: el.steer.getBoundingClientRect().width };
     });
     el.steer.addEventListener('pointermove', function (e) {
-      if (!drag || e.pointerId !== drag.id || paused || finished || looking) return;
+      if (!drag || e.pointerId !== drag.id || paused || briefing || finished || looking) return;
       setSteer(drag.v + (e.clientX - drag.x) / (drag.w * 0.36));
     });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (n) {
@@ -838,7 +908,7 @@
       ptrDrive = dir * amt; if (fill) fill.style.height = Math.round(amt * 100) + '%';
     }
     node.addEventListener('pointerdown', function (e) {
-      if (finished || paused || looking || mode !== 'game' || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (finished || paused || briefing || looking || mode !== 'game' || (e.pointerType === 'mouse' && e.button !== 0)) return;
       e.preventDefault(); pedalRelease.forEach(function (fn) { fn(); });
       pointer = e.pointerId; node.setPointerCapture(e.pointerId); set(e); node.classList.add('down');
     });
@@ -867,17 +937,28 @@
   $('b-levels').addEventListener('click', showMenu);
   $('b-skip').addEventListener('click', showMenu);
   $('b-howto').addEventListener('click', startTutorial);
-  $('w-new').addEventListener('click', startTutorial);
-  $('w-skip').addEventListener('click', showMenu);
+  document.querySelectorAll('[data-enter]').forEach(function (b) { b.addEventListener('click', enterYard); });
+  $('b-home').addEventListener('click', showHome);
+  $('setup-next').addEventListener('click', setupNext);
+  $('setup-back').addEventListener('click', setupBack);
+  $('setup-start').addEventListener('click', function () { setupDone = true; save('cdl.setup.v2', 'done'); if (experience === 'new') startTutorial(); else showMenu(); });
+  $('help-keyboard').addEventListener('click', function () { setControlHelp('keyboard'); });
+  $('help-touch').addEventListener('click', function () { setControlHelp('touch'); });
+  $('setup-sound').addEventListener('change', function () { soundOn = this.checked; save('cdl.sound', soundOn ? 'on' : 'off'); initSound(); updateSoundButton(); if (soundOn) chime('step'); });
+  $('lesson-hint-button').addEventListener('click', function () { var show = $('lesson-hint').hidden; $('lesson-hint').hidden = !show; this.setAttribute('aria-expanded', String(show)); });
+  $('brief-start').addEventListener('click', beginDrill);
+  $('brief-back').addEventListener('click', showMenu);
+  $('w-skip').addEventListener('click', function () { setupDone = true; save('cdl.setup.v2', 'done'); showMenu(); });
   $('levels').addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('.lvl') : null;
     if (b && !b.disabled) startLevel(+b.getAttribute('data-i'));
   });
   window.addEventListener('keydown', function (e) {
     if (mode !== 'game') return;
-    if (e.key === 'Escape') { e.preventDefault(); if (replay) stopReplay(); else if (paused) resumeGame(); else pauseGame(); return; }
-    if (paused || replay) return;
+    if (e.key === 'Escape') { e.preventDefault(); if (e.repeat) return; if (replay) stopReplay(); else if (paused) resumeGame(); else pauseGame(); return; }
+    if (paused || replay || briefing) return;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || (e.target.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter'))) return;
+    if (e.repeat && e.key.indexOf('Arrow') === 0 && !keys[e.key]) return;
     if (e.key.indexOf('Arrow') === 0) { keys[e.key] = true; e.preventDefault(); }
     else if (e.key === ' ') { e.preventDefault(); if (!e.repeat) setBrake(); }
     else if (e.key === 'c' || e.key === 'C') { if (!finished) setSteer(0); }
@@ -901,14 +982,15 @@
   // ---- loop ----
   function start() {
     reset(); setView(viewMode); setCoach(guideOn); updateSoundButton();
-    if (onboarded) showMenu(); else showWelcome();
+    setControlHelp(window.matchMedia && window.matchMedia('(pointer: coarse)').matches ? 'touch' : 'keyboard');
+    showHome();
     if (window.ResizeObserver) new ResizeObserver(fit).observe(yard); else window.addEventListener('resize', fit);
     var last = performance.now();
     (function frame(now) {
       var dt = Math.min(0.05, (now - last) / 1000); last = now;
       if (mode === 'game') {
         if (replay) replayTick(document.hidden ? 0 : dt);
-        else if (!paused && !finished && !document.hidden) {
+        else if (!paused && !briefing && !finished && !document.hidden) {
           var previousEnc = enc; step(dt);
           if (enc > previousEnc) chime('warn');
           if (L.kind === 'tutorial') tutTick();

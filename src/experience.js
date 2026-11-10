@@ -34,13 +34,14 @@
   var reverseBeep = 0;
   function soundTick(dt) {
     if (!soundCtx || !engineGain) return;
-    var live = soundOn && mode === 'game' && !paused && !finished && !looking && !document.hidden;
+    var live = soundOn && mode === 'game' && !paused && !briefing && !finished && !looking && !document.hidden;
     engine.frequency.setTargetAtTime(43 + Math.abs(s.v) * 11, soundCtx.currentTime, 0.1);
     engineGain.gain.setTargetAtTime(live ? 0.08 + Math.abs(s.v) * 0.025 : 0, soundCtx.currentTime, 0.06);
     reverseBeep -= dt;
     if (live && s.v < -0.1 && reverseBeep <= 0) { tone(780, 0.13); reverseBeep = 0.85; }
   }
   function updateSoundButton() {
+    $('setup-sound').checked = soundOn;
     $('b-sound').textContent = soundOn ? 'Sound on' : 'Sound off';
     $('b-sound').setAttribute('aria-pressed', String(soundOn));
   }
@@ -88,7 +89,7 @@
   }
   function pauseGame() {
     releaseControls();
-    if (mode !== 'game' || finished || paused) return;
+    if (mode !== 'game' || finished || briefing || paused) return;
     paused = true; $('pause-panel').hidden = false; $('b-resume').focus();
     if (engineGain) engineGain.gain.setValueAtTime(0, soundCtx.currentTime);
   }
