@@ -1041,7 +1041,7 @@
           var boxedNow = L.kind !== 'tutorial' && inBox();
           if (boxedNow && !wasBoxed) chime('step'); wasBoxed = boxedNow;
         }
-        frameSeconds = paused || briefing || finished || document.hidden ? 0 : dt;
+        frameSeconds = document.hidden ? 0 : replay ? dt * replay.speed : paused || briefing || finished ? 0 : dt;
         graphics.monitor(now, document.hidden || paused || briefing || finished);
         if (!document.hidden) { draw(); hud(); }
       }
