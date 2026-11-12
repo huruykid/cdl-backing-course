@@ -103,7 +103,7 @@
     laneLevel({
       id: 'offset', group: 'Current skills test', name: 'Reverse Offset', sub: 'Back from the right lane into the left one and stop in the 3-foot box.',
       brief: 'Back out of the right lane and into the left lane. Stop with the trailer rear in the 3-foot yellow box.',
-      free: 2, looksFree: 2, lane: [53, 71], boxDepth: 3,
+      free: 2, looksFree: 2, lane: [53, 71], boxDepth: 3, D: 22, shift: -1, into: 'open lane',
       start: { x: 77, y: 20, t1: -PI / 2, t2: -PI / 2 },
       zones: [[53, 2, 98, 84], [53, 84, 71, 118]],
       lines: [[53, 2, 53, 118], [53, 2, 98, 2], [98, 2, 98, 84], [98, 84, 71, 84], [71, 84, 71, 118], [53, 118, 71, 118]],
@@ -153,7 +153,7 @@
       want = Math.atan2(a.y - L.yc, 18);
       if (a.y < L.turnY) want = -PI / 2 + Math.atan2(a.x - L.laneX, 20);
     } else {
-      want = -PI / 2 + Math.atan2(a.x - L.lineX, L.id === 'offset' ? 22 : 18);
+      want = -PI / 2 + Math.atan2(a.x - L.lineX, L.D || 18);
     }
     var err = norm(want - st.t2), phi = norm(st.t1 - st.t2);
     var aim = Math.max(-1, Math.min(1, -3 * err));

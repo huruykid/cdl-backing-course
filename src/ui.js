@@ -6,18 +6,38 @@
   function $(id) { return document.getElementById(id); }
 
   // ---- saved progress ----
-  var prog = {}, guideOn = true, viewMode = 'top', onboarded = false;
+  var prog = {}, guideOn = true, coachLvl = 2, viewMode = 'top', onboarded = false, weather = 'day';
   try {
     prog = JSON.parse(localStorage.getItem('cdl.progress')) || {};
     onboarded = localStorage.getItem('cdl.onboarded') === '1' || Object.keys(prog).length > 0;
-    if (localStorage.getItem('cdl.coach') === 'off') guideOn = false;
+    var sw = localStorage.getItem('cdl.weather'); if (sw === 'night' || sw === 'rain') weather = sw;
     var sv = localStorage.getItem('cdl.view') || localStorage.getItem('alleydock.view'); if (sv === 'cab' || sv === 'seat') viewMode = sv;
   } catch (e) { prog = {}; }
   function save(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function saveProg() { save('cdl.progress', JSON.stringify(prog)); }
   // open if the level before it is passed; levels passed before the list grew stay open
   function unlocked(i) { return i === 0 || LEVELS.slice(i - 1).some(function (lv) { return !!prog[lv.id]; }); }
   var COUNT = { pullups: 'Pull-ups', stops: 'Stops', backups: 'Back-ups' };
-  function starStr(n) { return '★★★'.slice(0, n) + '<i>' + '★★★'.slice(n) + '</i>'; }
+  var MEDAL = ['', 'Bronze', 'Silver', 'Gold'], TEST_ORDER = ['fstop', 'straight', 'foffset', 'offset'];
+  function medal(n) { return n ? '<span class="medal m' + n + '">' + MEDAL[n] + '</span>' : ''; }
+  var REDUCE = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // ---- lessons: one idea per drill, with the reference points to watch for ----
+  var DOCK_LESSON = { t: 'The turn point', b: 'A 90° back has one moment that matters: when you start the turn. Too early and the trailer takes out the near cone. Too late and you run out of room.',
+    r: ['Back straight until the trailer wheels reach the white line.', 'Then wheel hard right. When the trailer points into the alley, steer left to follow it in.'] };
+  var LESSONS = {
+    fstop: { t: 'Know where your bumper is', b: 'The truck keeps rolling for a moment after you let off the pedal. Stop late and you cross the line. Stop early and you are short of the box.',
+      r: ['Let go of FWD as the bumper reaches the first line of the box.', 'Make it one smooth stop. Stopping twice costs points.'] },
+    straight: { t: 'Steer toward the drift', b: 'In reverse the trailer goes the opposite way to the wheel. If the trailer drifts left, turn left to bring it back, then take the correction out again.',
+      r: ['See more trailer on one side? Turn the wheel toward that side.', 'Correct early and small. Big corrections start a zigzag.'] },
+    foffset: { t: 'The trailer cuts the corner', b: 'Trailer wheels follow a tighter path than the cab. If the cab turns too soon, the trailer rolls over whatever is on the inside of the turn.',
+      r: ['Keep the trailer wheels right of the white line until they pass the cone.', 'Then swing the cab wide and come back so the trailer straightens.'] },
+    offset: { t: 'Set the angle, then follow it', b: 'To move the trailer sideways in reverse, first turn the wheel away from where you want it to go. That sets an angle. Then turn the other way so the cab follows the trailer over.',
+      r: ['Wheel right: the trailer tail swings left.', 'Once the trailer points at the lane, steer left to follow it, then straighten.'] },
+    wide: DOCK_LESSON,
+    alley: { t: 'Same turn, less room', b: 'This alley is 12 feet wide and the stop box is 3 feet deep. The turn point is the same as the wide dock, but small errors now reach the cones.',
+      r: DOCK_LESSON.r.concat(['Not sure where the rear is? Stop, get out and look. The first two looks are free.']) }
+  };
 
   // ---- run state ----
   var mode = 'menu', li = 0, L = LEVELS[0], WHEEL_DEG = 150;      // both steering wheels turn this far each way
@@ -42,7 +62,7 @@
   function tutMark() { tut.s0 = { x: s.x, y: s.y, t2: s.t2 }; tut.view0 = viewMode; $('tutstep').textContent = 'Step ' + (tut.i + 1) + ' of ' + STEPS.length; }
   function tutTick() {
     if (!tut || finished || !STEPS[tut.i].done()) return;
-    tut.i++; tutMark(); coachHold = { t: 'Good.', until: performance.now() + 650 };
+    tut.i++; tutMark(); sfx.step(); coachHold = { t: 'Good.', until: performance.now() + 650 };
   }
   function tutLine() {
     if (coachHold && performance.now() < coachHold.until) return coachHold;
@@ -54,7 +74,7 @@
   function startTutorial() {
     L = TUT; mode = 'game'; tut = { i: 0 };
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = true; $('tutbar').hidden = false;
-    $('v-goal').hidden = true;
+    $('v-goal').hidden = true; $('b-lesson').hidden = true; test = null; $('b-reset').disabled = false; $('b-guide').disabled = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false; $('b-levels').textContent = '‹ Exit';
     $('title').textContent = TUT.name;
     buildLevel(); reset(); fit();
@@ -69,7 +89,8 @@
     $('next').addEventListener('click', function () { startLevel(0); });
     $('tomenu').addEventListener('click', showMenu);
   }
-  function coaching() { return guideOn && !finished && L.kind !== 'tutorial'; }
+  function coaching() { return guideOn && !finished && !replay && L.kind !== 'tutorial'; }
+  function full() { return coachLvl === 2 && coaching(); }      // full help: wheel target, tail path, overhead map
   function showWelcome() {
     mode = 'menu';
     $('welcome').hidden = false; $('menu').hidden = true; $('game').hidden = true; $('stats').hidden = true; $('tutbar').hidden = true;
@@ -79,14 +100,18 @@
       dirty, bumped, jack, coachHold = null, coachedRun = false, pullArmed = false, fwdFt = 0, endAt = 0,
       moving = false, backArmed = false, revFt = 0, gateDone = false, trackMiss = false;
   var ptrDrive = 0, keys = {}, keyAmt = 0.35, looking = false, looks = 0, goalYaw = 0.9;
+  var wallHits = 0, paused = false, runLvl = 2, test = null, zoom = 1;
+  var rec = [], lastRun = null, replay = null, saw = 0, steerDir = 0, steerRef = 0, lateFt = null;
 
   function reset() {
-    s = { x: L.start.x, y: L.start.y, t1: L.start.t1, t2: L.start.t2, v: 0 };
+    var j = test ? 1 : 0;      // test day: the truck is never parked in quite the same spot
+    s = { x: L.start.x + j * (Math.random() - 0.5) * 2, y: L.start.y, t1: L.start.t1 + j * (Math.random() - 0.5) * 0.05, t2: L.start.t2 + j * (Math.random() - 0.5) * 0.05, v: 0 };
     cones = L.cones.map(function (k) { return { x: k.x, y: k.y, hit: false }; });
     pullups = 0; enc = 0; elapsed = 0;
     started = false; finished = false; hasReversed = false; lastDir = 0; pullArmed = false; fwdFt = 0; endAt = 0;
     moving = false; backArmed = false; revFt = 0; gateDone = false; trackMiss = false;
-    dirty = false; bumped = false; jack = false; coachHold = null; coachedRun = guideOn;
+    dirty = false; bumped = false; jack = false; coachHold = null; coachedRun = coachLvl > 0; runLvl = coachLvl;
+    wallHits = 0; paused = false; rec = []; replay = null; saw = 0; steerDir = 0; steerRef = 0; lateFt = null;
     camYaw = 0.3; looks = 0; endLook();
     if (L.kind === 'tutorial' && tut) tutMark();
     $('sheet').hidden = true;
@@ -98,31 +123,95 @@
     $('eyebrow').hidden = false; $('b-levels').hidden = true;
     $('title').textContent = 'Backing Course';
     if (!onboarded) { onboarded = true; save('cdl.onboarded', '1'); }
-    var next = -1, html = '';
+    test = null; $('b-reset').disabled = false; $('b-guide').disabled = false;
+    var next = -1, html = '', ws = weakSpot();
     LEVELS.forEach(function (lv, i) { if (next < 0 && !prog[lv.id]) next = i; });
+    if (ws) html += '<div class="weak"><p class="grp">Work on</p><strong>' + ws.t + '</strong><span>' + ws.b + '</span>' +
+      (ws.i >= 0 && unlocked(ws.i) ? '<button type="button" data-i="' + ws.i + '">Practice ' + LEVELS[ws.i].name + '</button>' : '') + '</div>';
     LEVELS.forEach(function (lv, i) {
       var open = unlocked(i), p = prog[lv.id];
       if (!i || lv.group !== LEVELS[i - 1].group) html += '<p class="grp">' + lv.group + '</p>';
-      var right = !open ? '<span class="tag">Locked</span>'
-        : p ? '<span class="stars" aria-label="' + p.stars + ' of 3 stars">' + starStr(p.stars) + '</span>'
-        : '<span class="tag">' + (i === next ? 'Start' : 'Open') + '</span>';
+      var right = !open ? '<span class="tag">Locked</span>' : p ? medal(p.stars) : '<span class="tag">' + (i === next ? 'Start' : 'Open') + '</span>';
       html += '<button type="button" class="lvl' + (i === next && open ? ' up' : '') + '" data-i="' + i + '"' + (open ? '' : ' disabled') + '>' +
         '<span class="n">' + (i + 1) + '</span>' +
         '<span><strong>' + lv.name + '</strong><span class="sub">' + (open ? lv.sub : 'Pass ' + LEVELS[i - 1].name + ' to unlock.') + '</span></span>' +
         right + '</button>';
+      if (lv.id === TEST_ORDER[TEST_ORDER.length - 1]) {
+        var ready = TEST_ORDER.every(function (id) { return !!prog[id]; }), tb = prog._test;
+        html += '<button type="button" class="lvl test" data-test="1"' + (ready ? '' : ' disabled') + '><span class="n">T</span>' +
+          '<span><strong>Test day</strong><span class="sub">' + (ready ? 'All four exercises back to back. No coach, no resets, one result.' : 'Pass the four drills above to unlock.') + '</span></span>' +
+          '<span class="tag">' + (tb ? (tb.pass ? 'Passed · ' + tb.pts + ' pts' : 'Not yet') : ready ? 'Open' : 'Locked') + '</span></button>';
+      }
     });
     var box = $('levels'); box.innerHTML = html;
     box.style.display = 'flex'; box.style.flexDirection = 'column'; box.style.gap = '8px';
+  }
+  // Which coach level a run starts with: full help, then cues only, then solo.
+  function stageLvl() {
+    if (test) return 0;
+    var p = prog[L.id], st = p ? (p.stage != null ? p.stage : p.stars >= 2 ? 2 : 0) : 0;
+    return [2, 1, 0][st];
+  }
+  function showLesson() {
+    var ls = LESSONS[L.id]; if (!ls || test || finished || replay) return;
+    paused = true;
+    $('sheet').innerHTML = '<div class="sheet-head"><div><h2>' + ls.t + '</h2><small>Lesson · ' + L.name + '</small></div></div>' +
+      '<p class="done">' + ls.b + '</p><ul class="refs">' + ls.r.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+      '<div class="btns"><button type="button" id="golesson" class="go">' + (started ? 'Back to the drill' : 'Start practice') + '</button></div>';
+    $('sheet').hidden = false;
+    $('golesson').addEventListener('click', function () { paused = false; $('sheet').hidden = true; });
+    (prog._seen = prog._seen || {})[L.id] = 1; saveProg();
+  }
+  function startTest() { test = { i: 0, res: [] }; startLevel(levelIndex(TEST_ORDER[0])); }
+  function levelIndex(id) { for (var i = 0; i < LEVELS.length; i++) if (LEVELS[i].id === id) return i; return 0; }
+  function showTestResult() {
+    var tot = 0, ok = true;
+    test.res.forEach(function (r) { tot += r.pts; ok = ok && r.pass; });
+    var old = prog._test;
+    if (!old || (ok && (!old.pass || tot < old.pts))) { prog._test = { pass: ok, pts: tot }; saveProg(); }
+    if (ok) sfx.pass(); else sfx.fail();
+    $('sheet').innerHTML = '<div class="sheet-head"><div><h2>Test day</h2><small>Four exercises · solo</small></div><div class="stamp ' + (ok ? 'pass' : 'retry') + '">' + (ok ? 'PASS' : 'FAIL') + '</div></div><table>' +
+      test.res.map(function (r) { return tr(r.name, r.dnf ? 'did not finish' : r.pass ? 'pass' : 'over ' + PASS_AT + ' points', r.pts); }).join('') +
+      '<tr class="total"><td>Points</td><td></td><td>' + tot + '</td></tr></table>' +
+      '<p class="note">' + (ok ? 'Every exercise passed with no coach and no resets.' : 'One failed exercise fails the test. Practise that drill, then come back.') + '</p>' +
+      '<div class="btns"><button type="button" id="tomenu">Levels</button><button type="button" id="tagain" class="go">Run it again</button></div>' +
+      '<p class="fine">Practice scoring. Official point values are not published.</p>';
+    $('sheet').hidden = false;
+    $('tomenu').addEventListener('click', showMenu);
+    $('tagain').addEventListener('click', startTest);
+  }
+  // Lifetime tallies turned into one thing to practise.
+  function weakSpot() {
+    var st = prog._stats; if (!st) return null;
+    var t = { runs: 0, enc: 0, extra: 0, saw: 0, dnf: 0, late: 0, lateN: 0, rev: 0 }, worst = null;
+    LEVELS.forEach(function (lv, i) {
+      var k = st[lv.id]; if (!k) return;
+      t.runs += k.runs; t.enc += k.enc; t.extra += k.extra; t.dnf += k.dnf; t.late += k.late; t.lateN += k.lateN;
+      if (lv.dir !== 'fwd') { t.rev += k.runs; t.saw += k.saw; }
+      if (!worst || k.enc / k.runs > worst.r) worst = { i: i, r: k.enc / k.runs };
+    });
+    if (t.runs < 3) return null;
+    var late = t.lateN ? t.late / t.lateN : 0;
+    if (t.dnf / t.runs > 0.4) return { t: 'Finishing the drill', b: 'Too many attempts end early. Set Coach to full and follow one run all the way in.', i: worst.i };
+    if (t.enc / t.runs >= 1) return { t: 'Lines and cones', b: 'You average ' + (t.enc / t.runs).toFixed(1) + ' encroachments a run. Creep near the cones: the lower third of the pedal is slow.', i: worst.i };
+    if (t.lateN >= 2 && late > 4) return { t: 'Turning late on the dock', b: 'You start the turn about ' + Math.round(late) + ' ft past the turn point. Go hard right the moment the trailer wheels reach the white line.', i: levelIndex('wide') };
+    if (t.lateN >= 2 && late < -4) return { t: 'Turning early on the dock', b: 'You start the turn about ' + Math.round(-late) + ' ft before the turn point. Wait for the trailer wheels to reach the white line.', i: levelIndex('wide') };
+    if (t.rev >= 2 && t.saw / t.rev > 8) return { t: 'Over-correcting', b: 'You reverse the wheel about ' + Math.round(t.saw / t.rev) + ' times a run. Make one small move, then wait for the trailer to answer.', i: levelIndex('straight') };
+    if (t.extra / t.runs >= 1) return { t: 'Too many pull-ups', b: 'Get out and look instead of pulling up. The first looks are free.', i: worst.i };
+    return { t: 'No weak spot showing', b: 'Your runs are clean. Go for gold, then try Test day.', i: -1 };
   }
   function startLevel(i) {
     li = i; L = LEVELS[i]; mode = 'game';
     $('menu').hidden = true; $('welcome').hidden = true; $('game').hidden = false; $('stats').hidden = false; $('tutbar').hidden = true;
     $('eyebrow').hidden = true; $('b-levels').hidden = false;
-    $('b-levels').textContent = '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
+    $('b-levels').textContent = test ? '‹ Quit test · ' + (test.i + 1) + ' of ' + TEST_ORDER.length : '‹ Levels · ' + (i + 1) + ' of ' + LEVELS.length;
+    $('b-reset').disabled = $('b-guide').disabled = !!test; $('b-lesson').hidden = !!test || !LESSONS[L.id]; zoom = 1;
+    setCoachLvl(stageLvl());
     $('title').textContent = L.name;
     $('l-pull').textContent = COUNT[L.count || 'pullups'];
     $('v-goal').hidden = L.looksFree == null;
     buildLevel(); reset(); fit();
+    if (!test && !(prog._seen && prog._seen[L.id])) showLesson();
   }
 
   function docked() { return isDocked(L, s); }
@@ -132,9 +221,9 @@
   function step(dt) {
     var kd = (keys.ArrowUp ? 1 : 0) - (keys.ArrowDown ? 1 : 0);
     keyAmt = kd ? Math.min(1, keyAmt + dt / 0.9) : 0.35;      // holding a key eases the throttle in
-    var drive = (finished || looking) ? 0 : (ptrDrive || kd * keyAmt);
+    var drive = (finished || looking || paused) ? 0 : (ptrDrive || kd * keyAmt);
     var ks = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
-    if (ks && !finished) setSteer(steer + ks * 1.6 * dt);
+    if (ks && !finished && !paused) setSteer(steer + ks * 1.6 * dt);
 
     var top = drive > 0 ? FWD_SPEED : SPEED;
     s.v += (drive * top - s.v) * Math.min(1, dt * 6);
@@ -153,7 +242,7 @@
     var all = corners(s.x, s.y, s.t1, TR).concat(corners(s.x, s.y, s.t2, TL));
     if (all.some(function (p) { return hardStop(L, p); })) {
       restore(prev);
-      if (!bumped) { bumped = true; enc++; }
+      if (!bumped) { bumped = true; wallHits++; sfx.hit(); }
       return;
     }
     bumped = false;
@@ -179,8 +268,14 @@
       if (coneIn(k, s.x, s.y, s.t1, TR) || coneIn(k, s.x, s.y, s.t2, TL)) { k.hit = true; touching = true; }
     });
     var now = touching || all.some(function (p) { return !inBounds(L, p); });
-    if (now && !dirty) enc++;
+    if (now && !dirty) { enc++; sfx.hit(); }
     dirty = now;
+    if (s.v < -0.3) {      // habits worth tracking while backing
+      var dsw = steer - steerRef;
+      if (steerDir && dsw * steerDir > 0) steerRef = steer;                                  // still turning the same way
+      else if (Math.abs(dsw) > 0.25) { if (steerDir) saw++; steerDir = dsw > 0 ? 1 : -1; steerRef = steer; }      // reversed the wheel
+      if (L.kind === 'dock' && lateFt == null && steer > 0.6 && norm(s.t2) < -1.3) lateFt = axle(s).y - L.turnY;      // where the turn began
+    }
   }
   function restore(p) { s.x = p.x; s.y = p.y; s.t1 = p.t1; s.t2 = p.t2; s.v = 0; }
 
@@ -200,11 +295,14 @@
   }
 
   // ---- coach ----
+  function turnTxt(diff, near) {
+    return near ? 'Hold the wheel there.' : (diff > 0 ? 'Turn right' : 'Turn left') + (coachLvl === 2 ? ', to the white mark.' : '.');
+  }
   function fwdLine() {
     if (!guideOn) return { t: !started ? L.brief : L.finish === 'front' ? 'Stop with the front bumper in the yellow box.' : 'The trailer cuts corners. Watch its wheels, not the cab.' };
     var r = recSteer(L, s), diff = r - steer, near = Math.abs(diff) < 0.15;
-    var turn = near ? 'Hold the wheel there.' : (diff > 0 ? 'Turn right, to the white mark.' : 'Turn left, to the white mark.');
-    if (!started && near) return { t: 'Hold FWD to pull forward. Keep the yellow tick on the white mark.', cue: 'fwd' };
+    var turn = turnTxt(diff, near);
+    if (!started && near) return { t: 'Hold FWD to pull forward.' + (coachLvl === 2 ? ' Keep the yellow tick on the white mark.' : ''), cue: 'fwd' };
     var why;
     if (L.finish === 'front') why = frontPoint(s).y - L.box[3] < 12 ? 'Get ready: let go of FWD as the bumper reaches the yellow box.' : 'Keep it straight down the lane.';
     else why = !gateDone ? 'The cab goes left first. Trailer wheels stay right of the white line until the cone.'
@@ -213,6 +311,8 @@
   }
   function coachLine() {
     if (L.kind === 'tutorial') return tutLine();
+    if (replay) return { t: 'Replay at 3× speed. Yellow is where your trailer wheels went. White is the coach\u2019s line.' };
+    if (paused) return { t: 'Read the lesson, then start.' };
     if (looking) return { t: 'You are out of the cab and the clock is stopped. Drag to walk around. ' + (looks <= L.looksFree ? 'Look ' + looks + ' of ' + L.looksFree + ' free.' : 'This extra look costs 1 point.') };
     if (coachHold && performance.now() < coachHold.until) return coachHold;
     if (finished) return { t: 'Brake set. Your sheet is up.' };
@@ -230,7 +330,7 @@
     }
     if (needPullUp(L, s)) return { t: 'Not enough room to turn. Center the wheel and hold FWD until the trailer wheels pass the white line.', cue: 'fwd' };
     var a = axle(s), r = recSteer(L, s), diff = r - steer, near = Math.abs(diff) < 0.15;
-    var turn = near ? 'Hold the wheel there.' : (diff > 0 ? 'Turn right, to the white mark.' : 'Turn left, to the white mark.');
+    var turn = turnTxt(diff, near);
     var why;
     if (L.kind === 'dock') {
       var upright = norm(s.t2) < -1.3;
@@ -241,7 +341,7 @@
         : r > 0.25 ? 'Wheel right pushes the trailer tail left.'
         : r < -0.25 ? 'Now chase the trailer so the cab follows it in.'
         : 'Small corrections. Keep backing.';
-    } else if (L.id === 'offset' && a.x > L.lineX + 3) {
+    } else if (L.shift && a.x > L.lineX + 3) {
       why = r > 0.2 ? 'Wheel right swings the trailer tail left, toward the open lane.'
         : r < -0.2 ? 'Now turn left so the trailer straightens up in the lane.'
         : 'Let it slide over. Keep backing.';
@@ -250,7 +350,7 @@
         : r < -0.2 ? 'Wheel left pushes the trailer tail right.'
         : 'Small corrections. Keep backing to the yellow box.';
     }
-    if (!hasReversed && near) return { t: 'Hold REV to back up. Keep the yellow tick on the white mark.', cue: 'rev' };
+    if (!hasReversed && near) return { t: 'Hold REV to back up.' + (coachLvl === 2 ? ' Keep the yellow tick on the white mark.' : ' Watch the trailer wheels.'), cue: 'rev' };
     return { t: turn + ' ' + why, cue: 'rev' };
   }
 
@@ -269,48 +369,110 @@
       coachHold = { t: (L.notIn || (L.kind === 'dock' ? 'The trailer is not fully in the alley.' : 'The trailer is not back in the lane yet.')) + ' Tap Set brake again to end this attempt.', w: 1, cue: 'brake', until: endAt };
       return;
     }
-    finished = true; s.v = 0;
+    finished = true; s.v = 0; sfx.brake();
     var extra = Math.max(0, pullups - L.free);
     var boxed = inBox();
     var extraLooks = L.looksFree == null ? 0 : Math.max(0, looks - L.looksFree);
-    var pts = extra + extraLooks + enc * 2 + (boxed ? 0 : 4) + (trackMiss ? 2 : 0);
+    var pts = extra + extraLooks + enc * 2 + wallHits * 3 + (boxed ? 0 : 4) + (trackMiss ? 2 : 0);
     var deg = Math.abs(norm(L.kind === 'dock' ? s.t2 : s.t2 + PI / 2)) * 180 / PI;
     var pass = !dnf && pts <= PASS_AT;
-    var stars = !pass ? 0 : coachedRun ? 1 : pts <= 1 ? 3 : 2;
+    var stars = !pass ? 0 : coachedRun ? 1 : pts <= 1 ? 3 : 2;      // bronze, silver, gold
+    if (pass) sfx.pass(); else sfx.fail();
+    lastRun = rec.concat([[s.x, s.y, s.t1, s.t2]]);
     var old = prog[L.id], note;
     if (pass) {
-      var rec = old || { stars: 0 };
-      if (stars > rec.stars) rec.stars = stars;
-      if (!coachedRun && (rec.pts == null || pts < rec.pts || (pts === rec.pts && elapsed < rec.time))) { rec.pts = pts; rec.time = elapsed; }
-      prog[L.id] = rec; save('cdl.progress', JSON.stringify(prog));
+      var p = old || { stars: 0 };
+      if (stars > p.stars) p.stars = stars;
+      p.stage = Math.max(p.stage || 0, runLvl === 2 ? 1 : 2);      // the coach fades: full, then cues, then solo
+      if (!coachedRun && (p.pts == null || pts < p.pts || (pts === p.pts && elapsed < p.time))) {
+        p.pts = pts; p.time = elapsed;
+        if (!test) p.ghost = lastRun.map(function (q) { return [Math.round(q[0] * 10) / 10, Math.round(q[1] * 10) / 10, Math.round(q[2] * 100) / 100, Math.round(q[3] * 100) / 100]; });
+      }
+      prog[L.id] = p;
     }
-    var hasNext = li + 1 < LEVELS.length;
-    if (dnf) note = 'Attempt ended before the trailer was in. Reset and go again, or turn Coach on for help.';
+    var st = prog._stats = prog._stats || {}, k = st[L.id] = st[L.id] || { runs: 0, pass: 0, enc: 0, extra: 0, saw: 0, dnf: 0, late: 0, lateN: 0 };
+    k.runs++; k.pass += pass ? 1 : 0; k.enc += enc + wallHits; k.extra += extra; k.saw += saw; k.dnf += dnf ? 1 : 0;
+    if (lateFt != null) { k.late += lateFt; k.lateN++; }
+    saveProg();
+
+    var hasNext = !test && li + 1 < LEVELS.length;
+    if (dnf) note = 'Attempt ended before the truck was in position.' + (test ? '' : ' Reset and go again, or set Coach to full.');
     else if (!pass) note = 'Pass at ' + PASS_AT + ' points or under. Fewer points is better.';
-    else if (coachedRun) note = (old ? '' : hasNext ? LEVELS[li + 1].name + ' is unlocked. ' : '') + 'Turn Coach off and run it solo for more stars.';
-    else if (stars < 3) note = 'Solo pass. Get it to 1 point or less for the third star.';
+    else if (coachedRun) note = (!old && hasNext ? LEVELS[li + 1].name + ' is unlocked. ' : '') + (runLvl === 2 ? 'Next run: cues only, with no wheel target.' : 'Next run is solo. Pass it for silver.');
+    else if (stars < 3) note = 'Solo pass. Get it to 1 point or less for gold.';
     else note = 'Clean solo run.';
+    var share = 'CDL Backing Course: ' + L.name + ', ' + MEDAL[stars].toLowerCase() + ', ' + pts + (pts === 1 ? ' point' : ' points') + ' in ' + clock(elapsed) + '. https://cdl-backing-course.vercel.app';
 
     $('sheet').innerHTML =
-      '<div class="sheet-head"><div><h2>Score sheet</h2><small>' + L.name + (coachedRun ? ' · coached' : ' · solo') + '</small></div>' +
+      '<div class="sheet-head"><div><h2>Score sheet</h2><small>' + L.name + (runLvl === 2 ? ' · coach: full' : runLvl === 1 ? ' · coach: cues' : ' · solo') + '</small></div>' +
       '<div class="stamp ' + (pass ? 'pass' : 'retry') + '">' + (pass ? 'PASS' : 'RETRY') + '</div></div>' +
       '<table>' +
       tr(COUNT[L.count || 'pullups'], pullups + ' (' + L.free + ' free)', extra) +
       (L.gate ? tr('Tracking line', trackMiss ? 'trailer cut inside' : 'held', trackMiss ? 2 : 0) : '') +
       (L.looksFree != null ? tr('Looks', looks + ' (' + L.looksFree + ' free)', extraLooks) : '') +
       tr('Encroachments', enc + ' × 2', enc * 2) +
+      (L.walls.length ? tr('Dock hits', wallHits + ' × 3', wallHits * 3) : '') +
       tr('Final position', dnf ? 'did not finish' : boxed ? (L.posOk || 'in stop box') : (L.posBad || 'short of box'), boxed ? 0 : 4) +
       tr('Trailer angle', deg.toFixed(1) + '° off straight', '') +
       tr('Time', clock(elapsed), '') +
       '<tr class="total"><td>Points</td><td></td><td>' + pts + '</td></tr></table>' +
-      '<p class="earned" aria-label="' + stars + ' of 3 stars">' + starStr(stars) + '</p>' +
+      '<p class="earned">' + medal(stars) + '</p>' +
       '<p class="note">' + note + '</p>' +
-      '<div class="btns"><button type="button" id="again"' + (pass && hasNext ? '' : ' class="go"') + '>Again</button>' +
-      (pass && hasNext ? '<button type="button" id="next" class="go">Next level</button>' : '<button type="button" id="tomenu">Levels</button>') + '</div>';
+      (test ? '<div class="btns"><button type="button" id="tnext" class="go">' + (test.i + 1 < TEST_ORDER.length ? 'Next exercise' : 'See test result') + '</button></div>'
+        : '<div class="btns"><button type="button" id="again"' + (pass && hasNext ? '' : ' class="go"') + '>Again</button>' +
+          (pass && hasNext ? '<button type="button" id="next" class="go">Next level</button>' : '<button type="button" id="tomenu">Levels</button>') + '</div>') +
+      '<div class="btns"><button type="button" id="replay">Replay</button>' + (pass ? '<button type="button" id="share">Share</button>' : '') + '</div>' +
+      '<p class="fine">Practice scoring. Official point values are not published.</p>';
     $('sheet').hidden = false;
-    $('again').addEventListener('click', reset);
+    if ($('again')) $('again').addEventListener('click', function () { setCoachLvl(stageLvl()); reset(); });
     if ($('next')) $('next').addEventListener('click', function () { startLevel(li + 1); });
     if ($('tomenu')) $('tomenu').addEventListener('click', showMenu);
+    if ($('tnext')) $('tnext').addEventListener('click', function () {
+      test.res.push({ name: L.name, pts: pts, pass: pass, dnf: dnf }); test.i++;
+      if (test.i < TEST_ORDER.length) startLevel(levelIndex(TEST_ORDER[test.i])); else showTestResult();
+    });
+    $('replay').addEventListener('click', startReplay);
+    if ($('share')) $('share').addEventListener('click', function () { shareResult(share, this); });
+  }
+  // Share sheet where the browser has one, otherwise copy, otherwise show the text to copy by hand.
+  function shareResult(text, btn) {
+    function shown() { if (!$('copytext')) { var i = document.createElement('input'); i.id = 'copytext'; i.className = 'copy'; i.readOnly = true; i.value = text; $('sheet').appendChild(i); i.select(); } }
+    function copy() {
+      try { navigator.clipboard.writeText(text).then(function () { btn.textContent = 'Copied'; }, shown); } catch (e) { shown(); }
+    }
+    if (navigator.share) { try { navigator.share({ text: text }).catch(copy); return; } catch (e) {} }
+    copy();
+  }
+
+  // ---- replay: the run again from above at 3x, with your wheel path over the coach's ----
+  function idealPath() {
+    if (L.ideal) return L.ideal;
+    var g = { x: L.start.x, y: L.start.y, t1: L.start.t1, t2: L.start.t2 }, out = [], v = L.dir === 'fwd' ? FWD_SPEED : -SPEED, tail = -1;
+    for (var i = 0; i < 2400 && tail !== 0; i++) {
+      advance(g, v, recSteer(L, g) * MAXD, 0.05);
+      if (i % 4 === 0) out.push([g.x, g.y, g.t1, g.t2]);
+      if (tail < 0 && isBoxed(L, g)) tail = 14; else if (tail > 0) tail--;
+    }
+    return (L.ideal = out);
+  }
+  function startReplay() {
+    if (!lastRun || lastRun.length < 2) return;
+    $('sheet').hidden = true; idealPath(); replay = { t: 0 };
+  }
+  function pose(a, b, u) {
+    s.x = a[0] + (b[0] - a[0]) * u; s.y = a[1] + (b[1] - a[1]) * u;
+    s.t1 = a[2] + norm(b[2] - a[2]) * u; s.t2 = a[3] + norm(b[3] - a[3]) * u; s.v = 0;
+  }
+  function replayTick(dt) {
+    replay.t += dt * 3;
+    var f = replay.t / 0.2, i = Math.floor(f), d = lastRun;
+    if (i >= d.length - 1) { pose(d[d.length - 1], d[d.length - 1], 0); replay = null; $('sheet').hidden = false; return; }
+    pose(d[i], d[i + 1], f - i);
+  }
+  function trace(d, color, dash) {
+    ctx.beginPath();
+    d.forEach(function (p, i) { var ax = p[0] - L2 * Math.cos(p[3]), ay = p[1] - L2 * Math.sin(p[3]); if (i) ctx.lineTo(ax, ay); else ctx.moveTo(ax, ay); });
+    ctx.strokeStyle = color; ctx.lineWidth = 0.7; ctx.setLineDash(dash ? [2, 1.6] : []); ctx.stroke(); ctx.setLineDash([]);
   }
   function tr(a, b, c) { return '<tr><td>' + a + '</td><td>' + b + '</td><td>' + c + '</td></tr>'; }
   function clock(t) { var m = Math.floor(t / 60), x = Math.floor(t % 60); return m + ':' + (x < 10 ? '0' : '') + x; }

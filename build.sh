@@ -3,7 +3,7 @@
 cd "$(dirname "$0")"
 python3 - <<'PY'
 head = open('src/head.html').read()
-js = open('src/core.js').read() + open('src/ui.js').read()
+js = open('src/core.js').read() + open('src/sound.js').read() + open('src/ui.js').read()
 i = head.index('</style>') + 8
 top = head[:i].replace('<style>', '<style>\nhtml{color-scheme:dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}\n', 1)
 three = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>\n'
